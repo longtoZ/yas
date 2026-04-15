@@ -27,5 +27,18 @@ pipeline {
         }
       }
     }
+
+    stage('SonarQube') {
+      steps {
+        withCredentials([string(credentialsId: 'YAS-SonarQube-Key', variable: 'SONAR_TOKEN')]) {
+          sh '''
+            mvn -B -DskipTests sonar:sonar \
+              -Dsonar.host.url=http://localhost:9000 \
+              -Dsonar.projectKey="YAS Project" \
+              -Dsonar.login=$SONAR_TOKEN
+          '''
+        }
+      }
+    }
   }
 }
