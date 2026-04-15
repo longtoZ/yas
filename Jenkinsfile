@@ -60,13 +60,14 @@ pipeline {
                         'tempo-data'
                     ] as Set
 
+                    String defaultService = env.DEFAULT_SERVICE ?: 'cart'
                     String changedOutput = runCommandOutput(
                         'git diff --name-only HEAD~1 HEAD || git ls-files',
                         '@echo off\r\ngit diff --name-only HEAD~1 HEAD || git ls-files'
                     )
 
                     List<String> changedFiles = changedOutput ? changedOutput.readLines().findAll { it?.trim() } : []
-                    String detectedService = env.DEFAULT_SERVICE
+                    String detectedService = defaultService
 
                     if (changedFiles) {
                         for (String filePath : changedFiles) {
@@ -78,13 +79,13 @@ pipeline {
                             }
 
                             if (sharedRoots.contains(root) || ['pom.xml', 'Jenkinsfile'].contains(filePath)) {
-                                detectedService = env.DEFAULT_SERVICE
+                                detectedService = defaultService
                             }
                         }
                     }
 
-                    env.SELECTED_SERVICE = detectedService
-                    env.SELECTED_TYPE = serviceTypes[detectedService]
+                    env.SELECTED_SERVICE = detectedService ?: defaultService
+                    env.SELECTED_TYPE = serviceTypes[env.SELECTED_SERVICE] ?: 'backend'
                     currentBuild.description = "service=${env.SELECTED_SERVICE}"
 
                     echo "Changed files:\n${changedFiles ? changedFiles.join('\n') : '(no changed files detected)'}"
