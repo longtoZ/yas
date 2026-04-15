@@ -14,6 +14,15 @@ def runCommandOutput(String unixCommand, String windowsCommand = unixCommand) {
     return bat(script: windowsCommand, returnStdout: true).trim()
 }
 
+String sanitizeServiceName(String value, String fallback = 'cart') {
+    String trimmed = value?.trim()
+    if (!trimmed || trimmed == 'null') {
+        return fallback
+    }
+
+    return trimmed
+}
+
 pipeline {
     agent any
 
@@ -60,7 +69,7 @@ pipeline {
                         'tempo-data'
                     ] as Set
 
-                    String defaultService = env.DEFAULT_SERVICE ?: 'cart'
+                    String defaultService = sanitizeServiceName(env.DEFAULT_SERVICE, 'cart')
                     String changedOutput = runCommandOutput(
                         'git diff --name-only HEAD~1 HEAD || git ls-files',
                         '@echo off\r\ngit diff --name-only HEAD~1 HEAD || git ls-files'
@@ -84,7 +93,7 @@ pipeline {
                         }
                     }
 
-                    env.SELECTED_SERVICE = detectedService ?: defaultService
+                    env.SELECTED_SERVICE = sanitizeServiceName(detectedService, defaultService)
                     env.SELECTED_TYPE = serviceTypes[env.SELECTED_SERVICE] ?: 'backend'
                     currentBuild.description = "service=${env.SELECTED_SERVICE}"
 
@@ -97,15 +106,18 @@ pipeline {
         stage('Test') {
             steps {
                 script {
-                    if (env.SELECTED_TYPE == 'frontend') {
+                    String selectedService = sanitizeServiceName(env.SELECTED_SERVICE, sanitizeServiceName(env.DEFAULT_SERVICE, 'cart'))
+                    String selectedType = env.SELECTED_TYPE ?: 'backend'
+
+                    if (selectedType == 'frontend') {
                         runCommand(
-                            "cd ${env.SELECTED_SERVICE} && npm ci && npm run lint && npx prettier --check .",
-                            "@echo off\r\ncd /d ${env.SELECTED_SERVICE}\r\nnpm ci\r\nnpm run lint\r\nnpx prettier --check ."
+                            "cd ${selectedService} && npm ci && npm run lint && npx prettier --check .",
+                            "@echo off\r\ncd /d ${selectedService}\r\nnpm ci\r\nnpm run lint\r\nnpx prettier --check ."
                         )
                     } else {
                         runCommand(
-                            "mvn -B -ntp clean verify -pl ${env.SELECTED_SERVICE} -am",
-                            "@echo off\r\nmvn -B -ntp clean verify -pl ${env.SELECTED_SERVICE} -am"
+                            "mvn -B -ntp clean verify -pl ${selectedService} -am",
+                            "@echo off\r\nmvn -B -ntp clean verify -pl ${selectedService} -am"
                         )
                     }
                 }
@@ -120,12 +132,15 @@ pipeline {
         stage('Coverage') {
             steps {
                 script {
-                    if (env.SELECTED_TYPE != 'backend') {
+                    String selectedService = sanitizeServiceName(env.SELECTED_SERVICE, sanitizeServiceName(env.DEFAULT_SERVICE, 'cart'))
+                    String selectedType = env.SELECTED_TYPE ?: 'backend'
+
+                    if (selectedType != 'backend') {
                         echo "Coverage publication is skipped for frontend bootstrap runs."
                         return
                     }
 
-                    String jacocoReport = "${env.SELECTED_SERVICE}/target/site/jacoco/jacoco.xml"
+                    String jacocoReport = "${selectedService}/target/site/jacoco/jacoco.xml"
                     if (!fileExists(jacocoReport)) {
                         echo "No JaCoCo report found at ${jacocoReport}."
                         return
@@ -144,15 +159,18 @@ pipeline {
         stage('Build') {
             steps {
                 script {
-                    if (env.SELECTED_TYPE == 'frontend') {
+                    String selectedService = sanitizeServiceName(env.SELECTED_SERVICE, sanitizeServiceName(env.DEFAULT_SERVICE, 'cart'))
+                    String selectedType = env.SELECTED_TYPE ?: 'backend'
+
+                    if (selectedType == 'frontend') {
                         runCommand(
-                            "cd ${env.SELECTED_SERVICE} && npm run build",
-                            "@echo off\r\ncd /d ${env.SELECTED_SERVICE}\r\nnpm run build"
+                            "cd ${selectedService} && npm run build",
+                            "@echo off\r\ncd /d ${selectedService}\r\nnpm run build"
                         )
                     } else {
                         runCommand(
-                            "mvn -B -ntp -DskipTests install -pl ${env.SELECTED_SERVICE} -am",
-                            "@echo off\r\nmvn -B -ntp -DskipTests install -pl ${env.SELECTED_SERVICE} -am"
+                            "mvn -B -ntp -DskipTests install -pl ${selectedService} -am",
+                            "@echo off\r\nmvn -B -ntp -DskipTests install -pl ${selectedService} -am"
                         )
                     }
                 }
