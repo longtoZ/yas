@@ -44,5 +44,21 @@ pipeline {
         }
       }
     }
-  }
-}
+
+    stage('Snyk Security Scan') {
+      steps {
+        sh '''
+          docker run --rm \
+            -v "$PWD:/workspace" -w /workspace \
+            snyk/snyk:latest test \
+              --severity-threshold=high \
+              --json-file-output=snyk-report.json \
+              --no-fail-on-unscanned || true
+        '''
+      }
+      post {
+        always {
+          archiveArtifacts artifacts: 'snyk-report.json', allowEmptyArchive: true
+        }
+      }
+    }
