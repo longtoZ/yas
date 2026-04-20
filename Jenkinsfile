@@ -10,21 +10,21 @@ pipeline {
 
     stage('Gitleaks') {
       steps {
-        sh '''
-          docker run --rm \
-            -v "$PWD:/repo" \
-            zricethezav/gitleaks:latest detect \
-            --source=/repo \
-            --config=/repo/gitleaks.toml \
-            --no-git \
-            --report-format=json \
-            --report-path=/repo/gitleaks-report.json
-        '''
+        catchError(buildResult: 'SUCCESS', stageResult: 'UNSTABLE') {
+          sh '''
+            docker run --rm \
+              -v "$PWD:/repo" \
+              zricethezav/gitleaks:latest detect \
+              --source=/repo \
+              --config=/repo/gitleaks.toml \
+              --no-git \
+              --report-format=json \
+              --report-path=/repo/gitleaks-report.json
+          '''
+        }
       }
       post {
-        always {
-          archiveArtifacts artifacts: 'gitleaks-report.json', allowEmptyArchive: true
-        }
+        always { archiveArtifacts artifacts: 'gitleaks-report.json', allowEmptyArchive: true }
       }
     }
 
@@ -48,14 +48,16 @@ pipeline {
     stage('Snyk Security Scan') {
       steps {
         withCredentials([string(credentialsId: 'YAS-Snyk-Token', variable: 'SNYK_TOKEN')]) {
-          sh '''
-            docker run --rm \
-              -e SNYK_TOKEN=${SNYK_TOKEN} \
-              -v "$PWD:/workspace" -w /workspace \
-              snyk/snyk:maven snyk test \
-                --severity-threshold=high \
-                --json-file-output=snyk-report.json
+          catchError(buildResult: 'SUCCESS', stageResult: 'UNSTABLE') {
+            sh '''
+              docker run --rm \
+                -e SNYK_TOKEN=${SNYK_TOKEN} \
+                -v "$PWD:/workspace" -w /workspace \
+                snyk/snyk:maven snyk test \
+                  --severity-threshold=high \
+                  --json-file-output=snyk-report.json
             '''
+          }
         }
       }
     }
