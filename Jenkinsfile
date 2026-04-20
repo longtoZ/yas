@@ -30,7 +30,7 @@ pipeline {
 
     stage('SonarQube') {
       steps {
-        withCredentials([string(credentialsId: 'YAS-SonarQube-Key', variable: 'SONAR_TOKEN')]) {
+        withCredentials([string(credentialsId: 'YAS-SonarQube-Token', variable: 'SONAR_TOKEN')]) {
           sh '''
             docker run --rm \
               -v "$PWD:/workspace" -w /workspace \
@@ -47,18 +47,15 @@ pipeline {
 
     stage('Snyk Security Scan') {
       steps {
-        sh '''
-          docker run --rm \
-            -v "$PWD:/workspace" -w /workspace \
-            snyk/snyk:latest test \
-              --severity-threshold=high \
-              --json-file-output=snyk-report.json \
-              --no-fail-on-unscanned || true
-        '''
-      }
-      post {
-        always {
-          archiveArtifacts artifacts: 'snyk-report.json', allowEmptyArchive: true
+        withCredentials([string(credentialsId: 'YAS-Snyk-Token', variable: 'SNYK_TOKEN')]) {
+          sh '''
+            docker run --rm \
+              -e SNYK_TOKEN=${SNYK_TOKEN} \
+              -v "$PWD:/workspace" -w /workspace \
+              snyk/snyk:maven snyk test \
+                --severity-threshold=high \
+                --json-file-output=snyk-report.json
+            '''
         }
       }
     }
