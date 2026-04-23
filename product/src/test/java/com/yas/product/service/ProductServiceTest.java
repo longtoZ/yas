@@ -12,6 +12,8 @@ import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
+import com.yas.commonlibrary.exception.BadRequestException;
+import com.yas.commonlibrary.exception.DuplicatedException;
 import com.yas.commonlibrary.exception.NotFoundException;
 import com.yas.product.model.Brand;
 import com.yas.product.model.Category;
@@ -754,6 +756,138 @@ class ProductServiceTest {
         assertEquals(List.of("CatX"), result.categories());
         assertEquals(List.of("Size"), result.attributes());
         assertEquals(700L, result.thumbnailMediaId());
+    }
+
+    @Test
+    void createProduct_whenLengthLessThanWidth_throwsBadRequestException() {
+        ProductPostVm postVm = new ProductPostVm(
+                "Product-X",
+                "product-x",
+                null,
+                List.of(1L),
+                "short",
+                "desc",
+                "spec",
+                "sku-x",
+                "gtin-x",
+                1.0,
+                DimensionUnit.CM,
+                1.0,
+                2.0,
+                1.0,
+                10.0,
+                true,
+                true,
+                false,
+                true,
+                false,
+                "meta",
+                "kw",
+                "md",
+                11L,
+                List.of(11L),
+                List.of(),
+                List.of(),
+                List.of(),
+                List.of(),
+                1L);
+
+        assertThrows(BadRequestException.class, () -> productService.createProduct(postVm));
+    }
+
+    @Test
+    void createProduct_whenVariationSlugDuplicatesMain_throwsDuplicatedException() {
+        ProductPostVm postVm = new ProductPostVm(
+                "Product-Y",
+                "product-y",
+                null,
+                List.of(1L),
+                "short",
+                "desc",
+                "spec",
+                "sku-y",
+                "gtin-y",
+                1.0,
+                DimensionUnit.CM,
+                2.0,
+                1.0,
+                1.0,
+                10.0,
+                true,
+                true,
+                false,
+                true,
+                false,
+                "meta",
+                "kw",
+                "md",
+                11L,
+                List.of(11L),
+                List.of(new ProductVariationPostVm(
+                        "Variant",
+                        "product-y",
+                        "sku-v1",
+                        "gtin-v1",
+                        12.0,
+                        31L,
+                        List.of(31L),
+                        Map.of())),
+                List.of(),
+                List.of(),
+                List.of(),
+                1L);
+
+        when(productRepository.findBySlugAndIsPublishedTrue("product-y")).thenReturn(Optional.empty());
+        when(productRepository.findByGtinAndIsPublishedTrue("gtin-y")).thenReturn(Optional.empty());
+        when(productRepository.findBySkuAndIsPublishedTrue("sku-y")).thenReturn(Optional.empty());
+
+        assertThrows(DuplicatedException.class, () -> productService.createProduct(postVm));
+    }
+
+    @Test
+    void createProduct_whenCategoryMissing_throwsBadRequestException() {
+        ProductPostVm postVm = new ProductPostVm(
+                "Product-Z",
+                "product-z",
+                null,
+                List.of(999L),
+                "short",
+                "desc",
+                "spec",
+                "sku-z",
+                "gtin-z",
+                1.0,
+                DimensionUnit.CM,
+                2.0,
+                1.0,
+                1.0,
+                10.0,
+                true,
+                true,
+                false,
+                true,
+                false,
+                "meta",
+                "kw",
+                "md",
+                11L,
+                List.of(11L),
+                List.of(),
+                List.of(),
+                List.of(),
+                List.of(),
+                1L);
+
+        Product saved = new Product();
+        saved.setId(99L);
+
+        when(productRepository.findBySlugAndIsPublishedTrue("product-z")).thenReturn(Optional.empty());
+        when(productRepository.findByGtinAndIsPublishedTrue("gtin-z")).thenReturn(Optional.empty());
+        when(productRepository.findBySkuAndIsPublishedTrue("sku-z")).thenReturn(Optional.empty());
+        when(productRepository.save(any(Product.class))).thenReturn(saved);
+        when(categoryRepository.findAllById(List.of(999L))).thenReturn(List.of());
+
+        assertThrows(BadRequestException.class, () -> productService.createProduct(postVm));
     }
 
     @Test
