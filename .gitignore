@@ -18,7 +18,7 @@
 *.zip
 *.tar.gz
 *.rar
-target
+target/
 
 ### IntelliJ IDEA ###
 .idea
@@ -29,3 +29,7 @@ hs_err_pid*
 .settings*
 .vscode
 *.iml
+.m2/
+
+# Keep the Maven wrapper committed even though jars are ignored by default.
+!.mvn/wrapper/maven-wrapper.jar
