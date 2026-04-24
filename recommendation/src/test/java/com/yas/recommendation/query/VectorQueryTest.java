@@ -28,7 +28,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.TestPropertySource;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
-@Testcontainers
+@Testcontainers(disabledWithoutDocker = true)
 @SpringBootTest
 @Import(KafkaIntegrationTestConfiguration.class)
 @TestPropertySource("classpath:application-test.properties")
@@ -70,7 +70,8 @@ public class VectorQueryTest {
 
         // When
         when(embeddingSearchConfiguration.topK()).thenReturn(10);
-        when(embeddingSearchConfiguration.similarityThreshold()).thenReturn(-1D); // force to query all data, not depend on vector compare operation
+        when(embeddingSearchConfiguration.similarityThreshold()).thenReturn(-1D); // force to query all data, not depend
+                                                                                  // on vector compare operation
         when(productService.getProductDetail(productId)).thenReturn(searchedProduct);
         when(productService.getProductDetail(similarProductId)).thenReturn(similarProduct);
         when(embeddingModel.embed(any(Document.class))).thenReturn(randomEmbed());
@@ -94,32 +95,31 @@ public class VectorQueryTest {
 
     private static @NotNull ProductDetailVm getProductDetailVm(long productId) {
         return new ProductDetailVm(
-            productId,
-            "IPhone 14 Pro",
-            "Latest iPhone model",
-            "The iPhone 14 Pro comes with the latest technology...",
-            "6.1-inch display, A16 Bionic chip, 128GB Storage",
-            "IPH14PRO",
-            "0123456789012",
-            "iphone-14-pro",
-            true,
-            true,
-            true,
-            true,
-            true,
-            999.99,
-            101L,
-            Collections.emptyList(),
-            "iPhone 14 Pro",
-            "iPhone, Apple, Smartphone",
-            "Buy the latest iPhone 14 Pro...",
-            1L,
-            "Apple",
-            Collections.emptyList(),
-            null,
-            null,
-            null
-        );
+                productId,
+                "IPhone 14 Pro",
+                "Latest iPhone model",
+                "The iPhone 14 Pro comes with the latest technology...",
+                "6.1-inch display, A16 Bionic chip, 128GB Storage",
+                "IPH14PRO",
+                "0123456789012",
+                "iphone-14-pro",
+                true,
+                true,
+                true,
+                true,
+                true,
+                999.99,
+                101L,
+                Collections.emptyList(),
+                "iPhone 14 Pro",
+                "iPhone, Apple, Smartphone",
+                "Buy the latest iPhone 14 Pro...",
+                1L,
+                "Apple",
+                Collections.emptyList(),
+                null,
+                null,
+                null);
     }
 
 }
