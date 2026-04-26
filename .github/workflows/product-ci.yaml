@@ -20,6 +20,11 @@ on:
 jobs:
   Test:
     runs-on: ubuntu-latest
+    permissions:
+      security-events: write
+      contents: read
+      pull-requests: write
+      
     env:
       FROM_ORIGINAL_REPOSITORY: ${{ github.event.pull_request.head.repo.full_name == github.repository || github.ref == 'refs/heads/main' }}
     steps:
@@ -72,7 +77,7 @@ jobs:
       
       - name: Snyk vulnerability scan
         if: ${{ env.FROM_ORIGINAL_REPOSITORY == 'true' }}
-        uses: snyk/actions/maven@master
+        uses: snyk/actions/maven@v3
         continue-on-error: true
         env:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
