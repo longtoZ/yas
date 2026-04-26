@@ -76,17 +76,20 @@ jobs:
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
         run: mvn org.sonarsource.scanner.maven:sonar-maven-plugin:sonar -f product
-      
-      - name: Install Snyk CLI
-        uses: snyk/actions/setup@master
 
-      - name: Snyk vulnerability scan
+      - name: Snyk vulnerability scan (Docker)
         if: ${{ env.FROM_ORIGINAL_REPOSITORY == 'true' }}
         continue-on-error: true
         env:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
-          # JAVA_HOME: ''
-        run: snyk test --severity-threshold=high --file=product/pom.xml -d --sarif-file-output=snyk.sarif
+        run: |
+          docker run --rm \
+            -e SNYK_TOKEN=${{ secrets.SNYK_TOKEN }} \
+            -v "$GITHUB_WORKSPACE:/workspace" -w /workspace \
+            snyk/snyk:maven snyk test \
+              --severity-threshold=high \
+              --file=product/pom.xml \
+              --sarif-file-output=snyk.sarif
 
       - name: Upload result to GitHub Code Scanning
         uses: github/codeql-action/upload-sarif@v3
