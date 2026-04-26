@@ -25,6 +25,8 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - uses: ./.github/workflows/actions
 
@@ -32,9 +34,18 @@ jobs:
         id: target
         run: |
           if [ "${{ github.event_name }}" == "pull_request" ]; then
-            SERVICE=$(echo "${{ github.head_ref }}" | sed 's|test/||')
-            echo "args=--file=$SERVICE/pom.xml" >> $GITHUB_OUTPUT
-            echo "scope=$SERVICE only" >> $GITHUB_OUTPUT
+            CHANGED_SERVICES=$(git diff --name-only origin/${{ github.base_ref }}...HEAD \
+              | grep -oP '^[^/]+' \
+              | sort -u \
+              | while read dir; do [ -f "$dir/pom.xml" ] && echo "$dir"; done)
+            COUNT=$(echo "$CHANGED_SERVICES" | grep -c .)
+            if [ "$COUNT" -eq 1 ]; then
+              echo "args=--file=$CHANGED_SERVICES/pom.xml" >> $GITHUB_OUTPUT
+              echo "scope=$CHANGED_SERVICES only" >> $GITHUB_OUTPUT
+            else
+              echo "args=--all-projects" >> $GITHUB_OUTPUT
+              echo "scope=all services" >> $GITHUB_OUTPUT
+            fi
           else
             echo "args=--all-projects" >> $GITHUB_OUTPUT
             echo "scope=all services" >> $GITHUB_OUTPUT
