@@ -23,6 +23,7 @@ jobs:
     permissions:
       security-events: write
       contents: read
+      checks: write
       pull-requests: write
 
     env:
@@ -69,6 +70,7 @@ jobs:
           title: 'Product Coverage Report'
           update-comment: true
           # fail-on-threshold: true
+
       - name: Analyze with sonar cloud
         if: ${{ env.FROM_ORIGINAL_REPOSITORY == 'true' }}
         env:
