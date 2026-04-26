@@ -17,8 +17,9 @@ on:
 
 jobs:
   Snyk:
-    name: Snyk Vulnerability Scan (all services)
+    name: Snyk Vulnerability Scan
     runs-on: ubuntu-latest
+    if: ${{ github.event_name != 'pull_request' || startsWith(github.head_ref, 'test/') }}
     permissions:
       security-events: write
       contents: read
@@ -35,10 +36,22 @@ jobs:
 
       - uses: ./.github/workflows/actions
 
+      - name: Resolve scan target
+        id: target
+        run: |
+          if [ "${{ github.event_name }}" == "pull_request" ]; then
+            SERVICE=$(echo "${{ github.head_ref }}" | sed 's|test/||')
+            echo "args=--file=$SERVICE/pom.xml" >> $GITHUB_OUTPUT
+            echo "scope=$SERVICE only" >> $GITHUB_OUTPUT
+          else
+            echo "args=--all-projects" >> $GITHUB_OUTPUT
+            echo "scope=all services" >> $GITHUB_OUTPUT
+          fi
+
       - name: Install Snyk CLI
         uses: snyk/actions/setup@master
 
-      - name: Snyk vulnerability scan
+      - name: Snyk vulnerability scan (${{ steps.target.outputs.scope }})
         continue-on-error: true
         env:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
@@ -47,7 +60,7 @@ jobs:
           find . -name "mvnw" -exec chmod +x {} +
 
           snyk test --severity-threshold=high \
-            --all-projects \
+            ${{ steps.target.outputs.args }} \
             -d \
             --sarif-file-output=snyk.sarif
 
