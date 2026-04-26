@@ -47,7 +47,6 @@ jobs:
           find . -name "mvnw" -exec chmod +x {} +
 
           snyk test --severity-threshold=high \
-            --file=pom.xml \
             --all-projects \
             -d \
             --sarif-file-output=snyk.sarif
