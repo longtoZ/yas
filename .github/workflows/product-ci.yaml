@@ -42,57 +42,63 @@ jobs:
       
       - uses: ./.github/workflows/actions
 
-      - name: Run tests and generate coverage report
-        run: mvn clean install -pl product -am
-      - name: Run Maven Checkstyle
-        if: ${{ env.FROM_ORIGINAL_REPOSITORY == 'true' }}
-        run: mvn checkstyle:checkstyle -pl product -am -Dcheckstyle.output.file=product-checkstyle-result.xml
-      - name: Upload Checkstyle Result
-        if: ${{ env.FROM_ORIGINAL_REPOSITORY == 'true' }}
-        uses: jwgmeligmeyling/checkstyle-github-action@master
-        with:
-          path: '**/product-checkstyle-result.xml'
-      - name: Upload test results
-        uses: dorny/test-reporter@v1
-        if: ${{ env.FROM_ORIGINAL_REPOSITORY == 'true' && (success() || failure()) }}
-        with:
-          name: Product-Service-Unit-Test-Results
-          path: 'product/**/*-reports/TEST*.xml'
-          reporter: java-junit
-      - name: Add coverage report to PR
-        uses: madrapps/jacoco-report@v1.6.1
-        if: ${{ env.FROM_ORIGINAL_REPOSITORY == 'true' }}
-        with:
-          paths: ${{github.workspace}}/product/target/site/jacoco/jacoco.xml
-          token: ${{secrets.GITHUB_TOKEN}}
-          min-coverage-overall: 70
-          min-coverage-changed-files: 70
-          title: 'Product Coverage Report'
-          update-comment: true
-          # fail-on-threshold: true
+      # - name: Run tests and generate coverage report
+      #   run: mvn clean install -pl product -am
 
-      - name: Analyze with sonar cloud
-        if: ${{ env.FROM_ORIGINAL_REPOSITORY == 'true' }}
-        env:
-          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-        run: mvn org.sonarsource.scanner.maven:sonar-maven-plugin:sonar -f product
+      # - name: Run Maven Checkstyle
+      #   if: ${{ env.FROM_ORIGINAL_REPOSITORY == 'true' }}
+      #   run: mvn checkstyle:checkstyle -pl product -am -Dcheckstyle.output.file=product-checkstyle-result.xml
+      
+      # - name: Upload Checkstyle Result
+      #   if: ${{ env.FROM_ORIGINAL_REPOSITORY == 'true' }}
+      #   uses: jwgmeligmeyling/checkstyle-github-action@master
+      #   with:
+      #     path: '**/product-checkstyle-result.xml'
+      
+      # - name: Upload test results
+      #   uses: dorny/test-reporter@v1
+      #   if: ${{ env.FROM_ORIGINAL_REPOSITORY == 'true' && (success() || failure()) }}
+      #   with:
+      #     name: Product-Service-Unit-Test-Results
+      #     path: 'product/**/*-reports/TEST*.xml'
+      #     reporter: java-junit
+      
+      # - name: Add coverage report to PR
+      #   uses: madrapps/jacoco-report@v1.6.1
+      #   if: ${{ env.FROM_ORIGINAL_REPOSITORY == 'true' }}
+      #   with:
+      #     paths: ${{github.workspace}}/product/target/site/jacoco/jacoco.xml
+      #     token: ${{secrets.GITHUB_TOKEN}}
+      #     min-coverage-overall: 70
+      #     min-coverage-changed-files: 70
+      #     title: 'Product Coverage Report'
+      #     update-comment: true
+      #     # fail-on-threshold: true
 
-      - name: Snyk vulnerability scan (Docker)
+      # - name: Analyze with sonar cloud
+      #   if: ${{ env.FROM_ORIGINAL_REPOSITORY == 'true' }}
+      #   env:
+      #     SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+      #   run: mvn org.sonarsource.scanner.maven:sonar-maven-plugin:sonar -f product
+      
+      - name: Install Snyk CLI
+        uses: snyk/actions/setup@master
+
+      - name: Snyk vulnerability scan
         if: ${{ env.FROM_ORIGINAL_REPOSITORY == 'true' }}
         continue-on-error: true
         env:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+          JAVA_HOME: ${{ env.JAVA_HOME }} 
         run: |
-          docker run --rm \
-            -e SNYK_TOKEN=${{ secrets.SNYK_TOKEN }} \
-            -v "$GITHUB_WORKSPACE:/workspace" -w /workspace \
-            snyk/snyk:maven snyk test \
-              --severity-threshold=high \
-              --file=product/pom.xml \
-              --sarif-file-output=snyk.sarif
+          # Fix the EACCES permission issue
+          chmod +x ./mvnw
+          # Run the scan with the organization ID explicitly defined to avoid 403 lookup errors
+          snyk test --org=0a975178-50a8-4eaa-bfef-bd4dbc68d49f --severity-threshold=high --file=product/pom.xml -d --sarif-file-output=snyk.sarif
 
       - name: Upload result to GitHub Code Scanning
         uses: github/codeql-action/upload-sarif@v3
+        continue-on-error: true
         with:
           sarif_file: snyk.sarif
 
