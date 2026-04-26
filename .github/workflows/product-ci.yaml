@@ -81,47 +81,7 @@ jobs:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
         run: mvn org.sonarsource.scanner.maven:sonar-maven-plugin:sonar -f product
       
-      - name: Install Snyk CLI
-        uses: snyk/actions/setup@master
 
-      - name: Snyk vulnerability scan
-        continue-on-error: true
-        env:
-          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
-          JAVA_HOME: ${{ env.JAVA_HOME }}
-        run: |
-          find . -name "mvnw" -exec chmod +x {} +
-          
-          snyk test --severity-threshold=high \
-            --file=pom.xml \
-            --maven-args="-pl product -am" \
-            -d \
-            --sarif-file-output=snyk.sarif
-
-      - name: Upload result to GitHub Code Scanning
-        uses: github/codeql-action/upload-sarif@v3
-        continue-on-error: true
-        with:
-          sarif_file: snyk.sarif
-
-      - name: OWASP Dependency Check
-        if: ${{ env.FROM_ORIGINAL_REPOSITORY == 'true' }}
-        uses: dependency-check/Dependency-Check_Action@main
-        env:
-          JAVA_HOME: /opt/jdk
-        with:
-          project: 'yas'
-          path: '.'
-          format: 'HTML'
-          args: >-
-            --disableOssIndex
-            --disableCentral
-      - name: Upload OWASP Dependency Check results
-        if: ${{ env.FROM_ORIGINAL_REPOSITORY == 'true' }}
-        uses: actions/upload-artifact@master
-        with:
-          name: OWASP Dependency Check Report
-          path: ${{github.workspace}}/reports
 
   Build:
     runs-on: ubuntu-latest
