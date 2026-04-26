@@ -92,7 +92,11 @@ jobs:
         run: |
           find . -name "mvnw" -exec chmod +x {} +
           
-          snyk test --severity-threshold=high --file=product/pom.xml -d --sarif-file-output=snyk.sarif
+          snyk test --severity-threshold=high \
+            --file=pom.xml \
+            --maven-args="-pl product -am" \
+            -d \
+            --sarif-file-output=snyk.sarif
 
       - name: Upload result to GitHub Code Scanning
         uses: github/codeql-action/upload-sarif@v3
