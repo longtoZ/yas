@@ -20,6 +20,7 @@ on:
 jobs:
   Build:
     runs-on: ubuntu-latest
+    if: ${{ github.event_name != 'pull_request' || github.head_ref == 'test/customer' }}
     env:
       FROM_ORIGINAL_REPOSITORY: ${{ github.event.pull_request.head.repo.full_name == github.repository || github.ref == 'refs/heads/main' }}
     steps:

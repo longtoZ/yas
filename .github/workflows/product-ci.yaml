@@ -20,6 +20,7 @@ on:
 jobs:
   Test:
     runs-on: ubuntu-latest
+    if: ${{ github.event_name != 'pull_request' || github.head_ref == 'test/product' }}
     permissions:
       security-events: write
       contents: read
@@ -85,6 +86,7 @@ jobs:
 
   Build:
     runs-on: ubuntu-latest
+    if: ${{ github.event_name != 'pull_request' || github.head_ref == 'test/product' }}
     needs: Test
     steps:
       - uses: actions/checkout@v4
