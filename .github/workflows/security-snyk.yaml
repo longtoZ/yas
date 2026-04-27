@@ -1,0 +1,98 @@
+name: security - snyk vulnerability scan
+
+on:
+  push:
+    branches: ['main']
+    paths:
+      - '**/pom.xml'
+      - '.github/workflows/security-snyk.yaml'
+  pull_request:
+    branches: ['main']
+    paths:
+      - '**/pom.xml'
+      - '.github/workflows/security-snyk.yaml'
+  schedule:
+    - cron: '0 1 * * 1' # Every Monday at 01:00 UTC
+  workflow_dispatch:
+
+jobs:
+  Snyk:
+    name: Snyk Vulnerability Scan
+    runs-on: ubuntu-latest
+    permissions:
+      security-events: write
+      contents: read
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: ./.github/workflows/actions
+
+      - name: Resolve scan target
+        id: target
+        run: |
+          if [ "${{ github.event_name }}" == "pull_request" ]; then
+            CHANGED=$(git diff --name-only origin/${{ github.base_ref }}...HEAD \
+              | grep -oP '^[^/]+' \
+              | sort -u \
+              | while read dir; do [ -f "$dir/pom.xml" ] && echo "$dir"; done \
+              | tr '\n' ' ' | xargs)
+            if [ -n "$CHANGED" ]; then
+              echo "services=$CHANGED" >> $GITHUB_OUTPUT
+              echo "scope=$(echo $CHANGED | tr ' ' ',')" >> $GITHUB_OUTPUT
+            else
+              echo "services=" >> $GITHUB_OUTPUT
+              echo "scope=all services" >> $GITHUB_OUTPUT
+            fi
+          else
+            echo "services=" >> $GITHUB_OUTPUT
+            echo "scope=all services" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Install Snyk CLI
+        uses: snyk/actions/setup@master
+
+      - name: Snyk vulnerability scan (${{ steps.target.outputs.scope }})
+        continue-on-error: true
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+          JAVA_HOME: ${{ env.JAVA_HOME }}
+        run: |
+          find . -name "mvnw" -exec chmod +x {} +
+
+          SERVICES="${{ steps.target.outputs.services }}"
+
+          if [ -z "$SERVICES" ]; then
+            # Full scan: --detection-depth=2 limits to one pom.xml per service dir,
+            # keeping SARIF runs well under GitHub's limit of 20
+            snyk test --severity-threshold=high \
+              --all-projects \
+              --detection-depth=2 \
+              -d \
+              --sarif-file-output=snyk.sarif
+          else
+            # Scan only changed services, write each SARIF to its own file
+            mkdir -p sarif-parts
+            for SERVICE in $SERVICES; do
+              snyk test --severity-threshold=high \
+                --file=$SERVICE/pom.xml \
+                -d \
+                --sarif-file-output=sarif-parts/${SERVICE}.sarif || true
+            done
+
+            # Merge all per-service SARIFs into one by slurping files from disk
+            # (avoids passing JSON via argv, which hits ARG_MAX limits)
+            jq -s '{
+              version: "2.1.0",
+              "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+              runs: (map(.runs) | add)
+            }' sarif-parts/*.sarif > snyk.sarif
+          fi
+
+      - name: Upload result to GitHub Code Scanning
+        uses: github/codeql-action/upload-sarif@v3
+        continue-on-error: true
+        with:
+          sarif_file: snyk.sarif
