@@ -65,7 +65,8 @@ public class ProductService extends AbstractCircuitBreakFallbackHandler {
                 .uri(url)
                 .headers(h -> h.setBearerAuth(jwt))
                 .body(buildProductQuantityItems(orderVm.orderItemVms()))
-                .retrieve();
+                .retrieve()
+                .toBodilessEntity();
     }
 
     @Retry(name = "restApi")
