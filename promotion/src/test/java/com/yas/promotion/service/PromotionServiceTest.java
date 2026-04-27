@@ -2,6 +2,7 @@ package com.yas.promotion.service;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.yas.commonlibrary.exception.BadRequestException;
 import com.yas.commonlibrary.exception.DuplicatedException;
@@ -9,15 +10,18 @@ import com.yas.commonlibrary.exception.NotFoundException;
 import com.yas.promotion.PromotionApplication;
 import com.yas.promotion.model.Promotion;
 import com.yas.promotion.model.PromotionApply;
+import com.yas.promotion.model.PromotionUsage;
 import com.yas.promotion.model.enumeration.ApplyTo;
 import com.yas.promotion.model.enumeration.DiscountType;
 import com.yas.promotion.model.enumeration.UsageType;
 import com.yas.promotion.repository.PromotionRepository;
+import com.yas.promotion.repository.PromotionUsageRepository;
 import com.yas.promotion.utils.Constants;
 import com.yas.promotion.viewmodel.ProductVm;
 import com.yas.promotion.viewmodel.PromotionDetailVm;
 import com.yas.promotion.viewmodel.PromotionListVm;
 import com.yas.promotion.viewmodel.PromotionPostVm;
+import com.yas.promotion.viewmodel.PromotionUsageVm;
 import com.yas.promotion.viewmodel.PromotionVerifyVm;
 import java.time.Instant;
 import java.time.ZonedDateTime;
@@ -31,12 +35,17 @@ import org.mockito.ArgumentMatchers;
 import org.mockito.Mockito;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.oauth2.jwt.Jwt;
+import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 
 @SpringBootTest(classes = PromotionApplication.class)
 class PromotionServiceTest {
     @Autowired
     private PromotionRepository promotionRepository;
+    @Autowired
+    private PromotionUsageRepository promotionUsageRepository;
     @MockitoBean
     private ProductService productService;
     @Autowired
@@ -135,7 +144,9 @@ class PromotionServiceTest {
 
     @AfterEach
     void tearDown() {
+        promotionUsageRepository.deleteAll();
         promotionRepository.deleteAll();
+        SecurityContextHolder.clearContext();
     }
 
     @Test
@@ -331,6 +342,49 @@ class PromotionServiceTest {
         assertEquals(1L, result.productId());
         assertEquals(DiscountType.FIXED, result.discountType());
         assertEquals(200L, result.discountValue().longValue());
+    }
+
+    @Test
+    void deletePromotion_whenPromotionInUse_thenBadRequestExceptionThrown() {
+        PromotionUsage promotionUsage = PromotionUsage.builder()
+            .promotion(promotion1)
+            .productId(1L)
+            .orderId(1001L)
+            .userId("user-1")
+            .build();
+        promotionUsageRepository.save(promotionUsage);
+
+        BadRequestException exception = assertThrows(BadRequestException.class,
+            () -> promotionService.deletePromotion(promotion1.getId()));
+        assertTrue(exception.getMessage().contains("in use"));
+    }
+
+    @Test
+    void deletePromotion_whenPromotionNotInUse_thenDeleteSuccess() {
+        promotionService.deletePromotion(promotion1.getId());
+
+        assertEquals(true, promotionRepository.findById(promotion1.getId()).isEmpty());
+    }
+
+    @Test
+    void updateUsagePromotion_whenPromotionExists_thenIncreaseUsageAndPersistUsage() {
+        Jwt jwt = Jwt.withTokenValue("test-token")
+            .header("alg", "none")
+            .subject("test-user-id")
+            .build();
+        SecurityContextHolder.getContext().setAuthentication(new JwtAuthenticationToken(jwt));
+
+        List<PromotionUsageVm> promotionUsageVms = List.of(
+            new PromotionUsageVm("codeWrong", 1L, null, 2001L)
+        );
+
+        int initialUsageCount = wrongRangeDatePromotion.getUsageCount();
+        promotionService.updateUsagePromotion(promotionUsageVms);
+
+        Promotion updatedPromotion = promotionRepository.findById(wrongRangeDatePromotion.getId()).orElseThrow();
+        assertEquals(initialUsageCount + 1, updatedPromotion.getUsageCount());
+        assertEquals(1, promotionUsageRepository.findAll().size());
+        assertEquals("test-user-id", promotionUsageRepository.findAll().getFirst().getUserId());
     }
 
     private List<ProductVm> createProductVms() {
