@@ -1,0 +1,46 @@
+name: security - owasp dependency check
+
+on:
+  push:
+    branches: ['main']
+    paths:
+      - '**/pom.xml'
+      - '.github/workflows/security-owasp.yaml'
+  pull_request:
+    branches: ['main']
+    paths:
+      - '**/pom.xml'
+      - '.github/workflows/security-owasp.yaml'
+  schedule:
+    - cron: '0 2 * * 1' # Every Monday at 02:00 UTC
+  workflow_dispatch:
+
+jobs:
+  OWASP:
+    name: OWASP Dependency Check (all services)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: ./.github/workflows/actions
+
+      - name: OWASP Dependency Check
+        uses: dependency-check/Dependency-Check_Action@main
+        env:
+          JAVA_HOME: /opt/jdk
+        with:
+          project: 'yas'
+          path: '.'
+          format: 'HTML'
+          args: >-
+            --disableOssIndex
+            --disableCentral
+
+      - name: Upload OWASP Dependency Check results
+        uses: actions/upload-artifact@master
+        with:
+          name: OWASP Dependency Check Report
+          path: ${{github.workspace}}/reports
