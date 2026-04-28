@@ -36,7 +36,7 @@ import org.springframework.context.annotation.Import;
 import org.springframework.test.context.TestPropertySource;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
-@Testcontainers
+@Testcontainers(disabledWithoutDocker = true)
 @SpringBootTest
 @Import(KafkaIntegrationTestConfiguration.class)
 @TestPropertySource("classpath:application-test.properties")
@@ -83,10 +83,9 @@ public class ProductVectorRepositoryTest extends BaseVectorRepositoryTest<Produc
         verify(vectorStore, times(1)).delete(docIdsCaptor.capture());
         var expectedId = productVectorRepository.getIdGenerator(productId).generateId();
         assertEquals(
-            expectedId,
-            docIdsCaptor.getValue().getFirst(),
-            "DocId must be generated same as 'IdGenerator' implementation"
-        );
+                expectedId,
+                docIdsCaptor.getValue().getFirst(),
+                "DocId must be generated same as 'IdGenerator' implementation");
     }
 
     @DisplayName("When performing search similarity, search query must be handle correctly")
@@ -135,41 +134,39 @@ public class ProductVectorRepositoryTest extends BaseVectorRepositoryTest<Produc
         var createdDoc = docsCaptor.getValue().getFirst();
         var expectedId = productVectorRepository.getIdGenerator(productId).generateId();
         assertEquals(
-            expectedId,
-            createdDoc.getId(),
-            "DocId must be generated same as 'IdGenerator' implementation"
-        );
+                expectedId,
+                createdDoc.getId(),
+                "DocId must be generated same as 'IdGenerator' implementation");
         assertDocumentData(createdDoc, productDetailVm);
     }
 
     private static @NotNull ProductDetailVm getProductDetailVm(long productId) {
         return new ProductDetailVm(
-            productId,
-            "IPhone 14 Pro",
-            "Latest iPhone model",
-            "The iPhone 14 Pro comes with the latest technology...",
-            "6.1-inch display, A16 Bionic chip, 128GB Storage",
-            "IPH14PRO",
-            "0123456789012",
-            "iphone-14-pro",
-            true,
-            true,
-            true,
-            true,
-            true,
-            999.99,
-            101L,
-            Collections.emptyList(),
-            "iPhone 14 Pro",
-            "iPhone, Apple, Smartphone",
-            "Buy the latest iPhone 14 Pro...",
-            1L,
-            "Apple",
-            Collections.emptyList(),
-            null,
-            null,
-            null
-        );
+                productId,
+                "IPhone 14 Pro",
+                "Latest iPhone model",
+                "The iPhone 14 Pro comes with the latest technology...",
+                "6.1-inch display, A16 Bionic chip, 128GB Storage",
+                "IPH14PRO",
+                "0123456789012",
+                "iphone-14-pro",
+                true,
+                true,
+                true,
+                true,
+                true,
+                999.99,
+                101L,
+                Collections.emptyList(),
+                "iPhone 14 Pro",
+                "iPhone, Apple, Smartphone",
+                "Buy the latest iPhone 14 Pro...",
+                1L,
+                "Apple",
+                Collections.emptyList(),
+                null,
+                null,
+                null);
     }
 
 }
