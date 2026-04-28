@@ -1,0 +1,1 @@
+CREATE TABLE IF NOT EXISTS sample_product (id INT PRIMARY KEY);
