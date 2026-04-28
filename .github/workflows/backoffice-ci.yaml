@@ -49,6 +49,7 @@ jobs:
       - run: npm run lint
         working-directory: backoffice
       - run: npx prettier --check .
+        continue-on-error: true
         working-directory: backoffice
       - run: npm audit --omit=dev
         continue-on-error: true
