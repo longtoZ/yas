@@ -54,13 +54,6 @@ jobs:
       - run: npm audit --omit=dev
         continue-on-error: true
         working-directory: backoffice
-      - name: Run Trivy vulnerability scanner
-        uses: aquasecurity/trivy-action@v0.36.0
-        with:
-          scan-type: 'fs'
-          scan-ref: './backoffice'
-          format: 'sarif'
-          output: 'trivy-results.sarif'
       - name: SonarCloud Scan
         if: ${{ env.FROM_ORIGINAL_REPOSITORY == 'true' }}
         uses: SonarSource/sonarcloud-github-action@master
@@ -104,6 +97,8 @@ jobs:
           image-ref: 'ghcr.io/nashtech-garage/yas-backoffice:latest'
           format: 'sarif'
           output: 'trivy-results.sarif'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - name: Push Docker image
         uses: docker/build-push-action@v6
         with:
