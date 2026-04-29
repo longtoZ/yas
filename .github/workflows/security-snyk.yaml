@@ -54,14 +54,20 @@ jobs:
       - name: Install Snyk CLI
         uses: snyk/actions/setup@master
 
+      - name: Install internal Maven artifacts (parent + shared modules)
+        # Per-service `mvn dependency:tree` (used by Snyk) cannot resolve internal
+        # SNAPSHOT siblings like com.yas:common-library unless they exist in ~/.m2.
+        # Build them once here so every per-service scan can resolve its deps.
+        run: |
+          mvn -B -ntp -DskipTests -Dmaven.test.skip=true \
+            -pl common-library,payment-paypal -am install
+
       - name: Snyk vulnerability scan (${{ steps.target.outputs.scope }})
         continue-on-error: true
         env:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
           JAVA_HOME: ${{ env.JAVA_HOME }}
         run: |
-          find . -name "mvnw" -exec chmod +x {} +
-
           SERVICES="${{ steps.target.outputs.services }}"
 
           if [ -z "$SERVICES" ]; then
