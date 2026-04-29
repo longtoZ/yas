@@ -1,0 +1,1 @@
+CREATE TABLE IF NOT EXISTS sample_media (id INT PRIMARY KEY);
