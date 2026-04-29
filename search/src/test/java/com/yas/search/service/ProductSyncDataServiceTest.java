@@ -1,26 +1,27 @@
 package com.yas.search.service;
 
+import java.net.URI;
+import java.util.List;
+import java.util.Optional;
+
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import org.springframework.web.client.RestClient;
+import org.springframework.web.util.UriComponentsBuilder;
 
 import com.yas.commonlibrary.exception.NotFoundException;
 import com.yas.search.config.ServiceUrlConfig;
 import com.yas.search.model.Product;
 import com.yas.search.repository.ProductRepository;
 import com.yas.search.viewmodel.ProductEsDetailVm;
-import java.net.URI;
-import java.util.List;
-import java.util.Optional;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Disabled;
-import org.junit.jupiter.api.Test;
-import org.mockito.ArgumentCaptor;
-import org.springframework.web.client.RestClient;
-import org.springframework.web.util.UriComponentsBuilder;
 
 class ProductSyncDataServiceTest {
     private static final String PRODUCT_URL = "http://api.yas.local/product";
@@ -31,6 +32,7 @@ class ProductSyncDataServiceTest {
 
     private ServiceUrlConfig serviceUrlConfig;
 
+    @SuppressWarnings({ "rawtypes", "unchecked" })
     RestClient.RequestHeadersUriSpec requestHeadersUriSpec;
 
     RestClient.ResponseSpec responseSpec;
@@ -54,31 +56,30 @@ class ProductSyncDataServiceTest {
     private void mockProductThumbnailVmsByUri() {
 
         final URI url = UriComponentsBuilder.fromUriString(PRODUCT_URL)
-            .path("/storefront/products-es/{id}").buildAndExpand(ID).toUri();
+                .path("/storefront/products-es/{id}").buildAndExpand(ID).toUri();
 
         when(serviceUrlConfig.product()).thenReturn(PRODUCT_URL);
         when(restClient.get()).thenReturn(requestHeadersUriSpec);
         when(requestHeadersUriSpec.uri(url)).thenReturn(requestHeadersUriSpec);
         when(requestHeadersUriSpec.retrieve()).thenReturn(responseSpec);
         when(responseSpec.body(ProductEsDetailVm.class))
-            .thenReturn(getProductThumbnailVms());
+                .thenReturn(getProductThumbnailVms());
     }
 
     private ProductEsDetailVm getProductThumbnailVms() {
         return new ProductEsDetailVm(
-            ID,
-            "Smartphone XYZ",
-            "smartphone-xyz",
-            299.99,
-            true,
-            true,
-            true,
-            false,
-            456L,
-            "BrandName",
-            List.of("Electronics", "Mobile Phones"),
-            List.of("Color: Black", "Storage: 128GB", "RAM: 6GB")
-        );
+                ID,
+                "Smartphone XYZ",
+                "smartphone-xyz",
+                299.99,
+                true,
+                true,
+                true,
+                false,
+                456L,
+                "BrandName",
+                List.of("Electronics", "Mobile Phones"),
+                List.of("Color: Black", "Storage: 128GB", "RAM: 6GB"));
     }
 
     @Test
@@ -139,33 +140,33 @@ class ProductSyncDataServiceTest {
         when(productRepository.findById(ID)).thenReturn(Optional.of(existingProduct));
 
         ProductEsDetailVm productEsDetailVm = new ProductEsDetailVm(
-            ID,
-            "Smartphone XYZ",
-            "smartphone-xyz",
-            299.99,
-            false,
-            true,
-            true,
-            false,
-            456L,
-            "BrandName",
-            List.of("Electronics", "Mobile Phones"),
-            List.of("Color: Black", "Storage: 128GB", "RAM: 6GB")
-        );
+                ID,
+                "Smartphone XYZ",
+                "smartphone-xyz",
+                299.99,
+                false,
+                true,
+                true,
+                false,
+                456L,
+                "BrandName",
+                List.of("Electronics", "Mobile Phones"),
+                List.of("Color: Black", "Storage: 128GB", "RAM: 6GB"));
 
         URI url = UriComponentsBuilder.fromUriString(PRODUCT_URL)
-            .path("/storefront/products-es/{id}").buildAndExpand(ID).toUri();
+                .path("/storefront/products-es/{id}").buildAndExpand(ID).toUri();
 
         when(serviceUrlConfig.product()).thenReturn(PRODUCT_URL);
         when(restClient.get()).thenReturn(requestHeadersUriSpec);
         when(requestHeadersUriSpec.uri(url)).thenReturn(requestHeadersUriSpec);
         when(requestHeadersUriSpec.retrieve()).thenReturn(responseSpec);
         when(responseSpec.body(ProductEsDetailVm.class))
-            .thenReturn(productEsDetailVm);
+                .thenReturn(productEsDetailVm);
 
         productSyncDataService.updateProduct(ID);
 
         verify(productRepository).deleteById(ID);
+        verify(productRepository, never()).save(existingProduct);
     }
 
     @Test
@@ -175,18 +176,15 @@ class ProductSyncDataServiceTest {
         when(productRepository.findById(ID)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> productSyncDataService.updateProduct(ID))
-            .isInstanceOf(NotFoundException.class)
-            .hasMessage("The product 1 is not found");
+                .isInstanceOf(NotFoundException.class)
+                .hasMessage("The product 1 is not found");
     }
-
 
     @Test
     void testCreateProduct_whenNormalCase_createsAndSavesProduct() {
 
         mockProductThumbnailVmsByUri();
         ProductEsDetailVm productEsDetailVm = getProductThumbnailVms();
-
-        when(productSyncDataService.getProductEsDetailById(ID)).thenReturn(productEsDetailVm);
 
         productSyncDataService.createProduct(ID);
 
@@ -207,7 +205,6 @@ class ProductSyncDataServiceTest {
         assertThat(actual.getAttributes()).isEqualTo(productEsDetailVm.attributes());
     }
 
-
     @Test
     void testDeleteProduct_whenProductExists_deletesProduct() {
         Long id = 1L;
@@ -219,16 +216,13 @@ class ProductSyncDataServiceTest {
         verify(productRepository).deleteById(id);
     }
 
-    @Disabled
     @Test
-    void testDeleteProduct_whenProductDoesNotExist_throwsNotFoundException() {
+    void testDeleteProduct_whenProductDoesNotExist_doNothing() {
         Long id = 1L;
 
         when(productRepository.existsById(id)).thenReturn(false);
 
-        assertThatThrownBy(() -> productSyncDataService.deleteProduct(id))
-            .isInstanceOf(NotFoundException.class)
-            .hasMessageContaining("The product 1 is not found");
+        assertThatCode(() -> productSyncDataService.deleteProduct(id)).doesNotThrowAnyException();
 
         verify(productRepository, never()).deleteById(id);
     }
