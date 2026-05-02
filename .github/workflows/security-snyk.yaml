@@ -54,13 +54,14 @@ jobs:
       - name: Install Snyk CLI
         uses: snyk/actions/setup@master
 
-      - name: Install internal Maven artifacts (parent + shared modules)
-        # Per-service `mvn dependency:tree` (used by Snyk) cannot resolve internal
-        # SNAPSHOT siblings like com.yas:common-library unless they exist in ~/.m2.
-        # Build them once here so every per-service scan can resolve its deps.
+      # Snyk's Maven scanner shells out to `mvn dependency:tree`, which needs
+      # the reactor parent POM and the in-repo `common-library` artifact to be
+      # resolvable from ~/.m2. Without this pre-install, every service that
+      # depends on com.yas:common-library fails with SNYK-OS-MAVEN-0018.
+      - name: Prime local Maven repo (parent POM + common-library)
         run: |
-          mvn -B -ntp -DskipTests -Dmaven.test.skip=true \
-            -pl common-library,payment-paypal -am install
+          mvn -B -N -DskipTests -Dcheckstyle.skip -Dspotless.check.skip=true install
+          mvn -B -pl common-library -am -DskipTests -Dcheckstyle.skip -Dspotless.check.skip=true install
 
       - name: Snyk vulnerability scan (${{ steps.target.outputs.scope }})
         continue-on-error: true
@@ -68,6 +69,8 @@ jobs:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
           JAVA_HOME: ${{ env.JAVA_HOME }}
         run: |
+          find . -name "mvnw" -exec chmod +x {} +
+
           SERVICES="${{ steps.target.outputs.services }}"
 
           if [ -z "$SERVICES" ]; then
