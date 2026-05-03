@@ -5,8 +5,10 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.argThat;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import com.yas.cart.mapper.CartItemMapper;
@@ -167,6 +169,20 @@ class CartItemServiceTest {
             assertEquals(PRODUCT_ID_SAMPLE, updatedCartItem.productId());
             assertEquals(cartItemPutVm.quantity(), updatedCartItem.quantity());
         }
+
+        @Test
+        void testUpdateCartItem_whenRequestIsValid_shouldSaveCartItemForCurrentUserAndRequestedProduct() {
+            mockCurrentUserId(CURRENT_USER_ID_SAMPLE);
+            when(productService.existsById(PRODUCT_ID_SAMPLE)).thenReturn(true);
+            when(cartItemRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+
+            cartItemService.updateCartItem(PRODUCT_ID_SAMPLE, cartItemPutVm);
+
+            verify(cartItemRepository).save(argThat(cartItem ->
+                CURRENT_USER_ID_SAMPLE.equals(cartItem.getCustomerId())
+                    && PRODUCT_ID_SAMPLE.equals(cartItem.getProductId())
+                    && cartItemPutVm.quantity().equals(cartItem.getQuantity())));
+        }
     }
 
     @Nested
@@ -204,6 +220,18 @@ class CartItemServiceTest {
 
             assertThrows(BadRequestException.class,
                 () -> cartItemService.deleteOrAdjustCartItem(cartItemDeleteVms));
+        }
+
+        @Test
+        void testDeleteOrAdjustCartItem_whenCartItemDeleteVmsDuplicatedWithSameQuantity_shouldThrowBadRequestException() {
+            CartItemDeleteVm cartItemDeleteVm1 = new CartItemDeleteVm(PRODUCT_ID_SAMPLE, 1);
+            CartItemDeleteVm cartItemDeleteVm2 = new CartItemDeleteVm(cartItemDeleteVm1.productId(), 1);
+
+            List<CartItemDeleteVm> cartItemDeleteVms = List.of(cartItemDeleteVm1, cartItemDeleteVm2);
+
+            assertThrows(BadRequestException.class,
+                () -> cartItemService.deleteOrAdjustCartItem(cartItemDeleteVms));
+            verifyNoInteractions(cartItemRepository);
         }
 
         @Test
@@ -246,6 +274,48 @@ class CartItemServiceTest {
             verify(cartItemRepository).saveAll(List.of(existingCartItem));
             assertEquals(1, cartItemGetVms.size());
             assertEquals(expectedQuantity, cartItemGetVms.getFirst().quantity());
+        }
+
+        @Test
+        void testDeleteOrAdjustCartItem_whenSomeItemsNeedDeleteAndSomeNeedAdjust_shouldApplyBothOperations() {
+            CartItemDeleteVm deleteVm = new CartItemDeleteVm(1L, 2);
+            CartItemDeleteVm adjustVm = new CartItemDeleteVm(2L, 1);
+            CartItem deleteCartItem = CartItem.builder()
+                .customerId(CURRENT_USER_ID_SAMPLE)
+                .productId(deleteVm.productId())
+                .quantity(deleteVm.quantity())
+                .build();
+            CartItem adjustCartItem = CartItem.builder()
+                .customerId(CURRENT_USER_ID_SAMPLE)
+                .productId(adjustVm.productId())
+                .quantity(3)
+                .build();
+
+            mockCurrentUserId(CURRENT_USER_ID_SAMPLE);
+            when(cartItemRepository.findByCustomerIdAndProductIdIn(any(), any()))
+                .thenReturn(List.of(deleteCartItem, adjustCartItem));
+            when(cartItemRepository.saveAll(any())).thenAnswer(invocation -> invocation.getArgument(0));
+
+            List<CartItemGetVm> result = cartItemService.deleteOrAdjustCartItem(List.of(deleteVm, adjustVm));
+
+            verify(cartItemRepository).deleteAll(List.of(deleteCartItem));
+            verify(cartItemRepository).saveAll(List.of(adjustCartItem));
+            assertEquals(1, result.size());
+            assertEquals(adjustVm.productId(), result.getFirst().productId());
+            assertEquals(2, result.getFirst().quantity());
+        }
+    }
+
+    @Nested
+    class DeleteCartItemTest {
+
+        @Test
+        void testDeleteCartItem_shouldDeleteByCurrentUserAndProductId() {
+            mockCurrentUserId(CURRENT_USER_ID_SAMPLE);
+
+            cartItemService.deleteCartItem(PRODUCT_ID_SAMPLE);
+
+            verify(cartItemRepository).deleteByCustomerIdAndProductId(CURRENT_USER_ID_SAMPLE, PRODUCT_ID_SAMPLE);
         }
     }
 
