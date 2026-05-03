@@ -1,5 +1,6 @@
 package com.yas.media.controller;
 
+import com.yas.commonlibrary.exception.NotFoundException;
 import com.yas.commonlibrary.exception.ApiExceptionHandler;
 import com.yas.media.model.Media;
 import com.yas.media.model.dto.MediaDto;
@@ -90,6 +91,24 @@ class MediaControllerTest {
                     .param("fileNameOverride", "image.png"))
                 .andExpect(status().isBadRequest());
         }
+
+        @Test
+        void create_whenMultipartFileTypeIsInvalid_thenReturnBadRequest() throws Exception {
+            MockMultipartFile multipartFile = new MockMultipartFile(
+                "multipartFile",
+                "note.txt",
+                MediaType.TEXT_PLAIN_VALUE,
+                "plain-text".getBytes(StandardCharsets.UTF_8)
+            );
+
+            mockMvc.perform(multipart("/medias")
+                    .file(multipartFile)
+                    .param("caption", "sample")
+                    .param("fileNameOverride", "note.txt"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.detail").value("Request information is not valid"))
+                .andExpect(jsonPath("$.fieldErrors[0]").value("multipartFile File type not allowed. Allowed types are: JPEG, PNG, GIF"));
+        }
     }
 
     @Nested
@@ -103,6 +122,16 @@ class MediaControllerTest {
                 .andExpect(status().isNoContent());
 
             verify(mediaService).removeMedia(1L);
+        }
+
+        @Test
+        void delete_whenMediaDoesNotExist_thenReturnNotFound() throws Exception {
+            var message = "Media 99 is not found";
+            org.mockito.Mockito.doThrow(new NotFoundException(message)).when(mediaService).removeMedia(99L);
+
+            mockMvc.perform(delete("/medias/99"))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.detail").value(message));
         }
     }
 
@@ -159,6 +188,12 @@ class MediaControllerTest {
         @Test
         void getByIds_whenIdsParameterIsMissing_thenReturnBadRequest() throws Exception {
             mockMvc.perform(get("/medias"))
+                .andExpect(status().isBadRequest());
+        }
+
+        @Test
+        void getByIds_whenIdsParameterIsEmpty_thenReturnBadRequest() throws Exception {
+            mockMvc.perform(get("/medias").param("ids", ""))
                 .andExpect(status().isBadRequest());
         }
     }
