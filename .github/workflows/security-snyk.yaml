@@ -54,34 +54,61 @@ jobs:
       - name: Install Snyk CLI
         uses: snyk/actions/setup@master
 
+      # Defence-in-depth: prime ~/.m2 with the reactor parent POM and
+      # common-library so that any Maven invocation Snyk does locally can
+      # resolve `com.yas:*:${revision}` artifacts. The aggregate scan below
+      # would normally handle this on its own via the Maven reactor, but
+      # installing first also unblocks any single-module fallbacks.
+      - name: Prime local Maven repo (parent POM + common-library)
+        run: |
+          mvn -B -N -DskipTests -Dcheckstyle.skip -Dspotless.check.skip=true install
+          mvn -B -pl common-library -am -DskipTests -Dcheckstyle.skip -Dspotless.check.skip=true install
+
+      # Sanity check: prove `mvn dependency:tree` works for one of the
+      # services that previously failed. If this step fails, the Snyk run
+      # below would have failed with SNYK-OS-MAVEN-0018 too — and the log
+      # here will tell us exactly which dependency could not be resolved.
+      - name: Verify Maven dependency tree resolves
+        run: mvn -B -pl cart -am dependency:tree -DskipTests -Dcheckstyle.skip -Dspotless.check.skip=true
+
+      # Run a single aggregate scan against the reactor root. This makes Snyk
+      # invoke `mvn dependency:tree` on the parent POM, so:
+      #   * `${revision}` is resolved by the same reactor;
+      #   * sibling modules (common-library) are resolved in-process;
+      #   * we get one SARIF "run" per module, which we then split below.
       - name: Snyk vulnerability scan (${{ steps.target.outputs.scope }})
         continue-on-error: true
         env:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
-          JAVA_HOME: ${{ env.JAVA_HOME }}
         run: |
-          find . -name "mvnw" -exec chmod +x {} +
+          mkdir -p sarif-parts
+          echo "::group::Snyk aggregate scan (Maven reactor)"
+          snyk test \
+            --severity-threshold=high \
+            --maven-aggregate-project \
+            --sarif-file-output=sarif-parts/_combined.sarif || true
+          echo "::endgroup::"
 
-          SERVICES="${{ steps.target.outputs.services }}"
-
-          if [ -z "$SERVICES" ]; then
-            # Discover every top-level service with a pom.xml (skip the parent reactor pom)
-            SERVICES=$(find . -mindepth 2 -maxdepth 2 -name "pom.xml" \
-              | sed 's|^\./||; s|/pom.xml$||' \
-              | sort -u | tr '\n' ' ')
+          if [ ! -s sarif-parts/_combined.sarif ]; then
+            echo "Snyk produced no SARIF; nothing to split."
+            exit 0
           fi
 
-          echo "Scanning services: $SERVICES"
-
-          mkdir -p sarif-parts
-          for SERVICE in $SERVICES; do
-            SAFE_NAME=$(echo "$SERVICE" | tr '/' '-')
-            echo "::group::Snyk scan: $SERVICE"
-            snyk test --severity-threshold=high \
-              --file=$SERVICE/pom.xml \
-              --sarif-file-output=sarif-parts/${SAFE_NAME}.sarif || true
-            echo "::endgroup::"
+          # Split the combined SARIF into one file per run so the existing
+          # batching step (max 20 runs per upload) keeps working unchanged.
+          RUNS=$(jq '.runs | length' sarif-parts/_combined.sarif)
+          echo "Splitting $RUNS runs into per-module SARIF files"
+          for i in $(seq 0 $((RUNS - 1))); do
+            NAME=$(jq -r ".runs[$i].properties.projectName // \"run-$i\"" sarif-parts/_combined.sarif \
+              | tr '/: ' '---')
+            jq "{
+              version: .version,
+              \"\$schema\": .\"\$schema\",
+              runs: [.runs[$i]]
+            }" sarif-parts/_combined.sarif > "sarif-parts/${NAME}.sarif"
           done
+          rm sarif-parts/_combined.sarif
+          ls -la sarif-parts/
 
       - name: Pack SARIF parts into batches (<=20 runs each)
         if: always()
