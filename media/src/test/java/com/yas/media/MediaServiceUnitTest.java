@@ -7,11 +7,13 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 import com.yas.commonlibrary.exception.NotFoundException;
@@ -26,6 +28,8 @@ import com.yas.media.viewmodel.MediaPostVm;
 import com.yas.media.viewmodel.MediaVm;
 import com.yas.media.viewmodel.NoFileMediaVm;
 import java.io.ByteArrayInputStream;
+import java.io.IOException;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
 import org.jetbrains.annotations.NotNull;
@@ -110,8 +114,8 @@ class MediaServiceUnitTest {
     }
 
     @Test
-    void saveMedia_whenTypePNG_thenSaveSuccess() {
-        byte[] pngFileContent = new byte[] {};
+    void saveMedia_whenTypePNG_thenSaveSuccess() throws Exception {
+        byte[] pngFileContent = "png-bytes".getBytes();
         MultipartFile multipartFile = new MockMultipartFile(
             "file",
             "example.png",
@@ -119,6 +123,7 @@ class MediaServiceUnitTest {
             pngFileContent
         );
         MediaPostVm mediaPostVm = new MediaPostVm("media", multipartFile, "fileName");
+        when(fileSystemRepository.persistFile(eq("fileName"), any(byte[].class))).thenReturn("/tmp/fileName");
 
         when(mediaRepository.save(any(Media.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
@@ -126,6 +131,8 @@ class MediaServiceUnitTest {
         assertNotNull(mediaSave);
         assertEquals("media", mediaSave.getCaption());
         assertEquals("fileName", mediaSave.getFileName());
+        assertEquals("/tmp/fileName", mediaSave.getFilePath());
+        verify(fileSystemRepository).persistFile(eq("fileName"), argThat(bytes -> Arrays.equals(bytes, pngFileContent)));
     }
 
     @Test
@@ -190,8 +197,8 @@ class MediaServiceUnitTest {
     }
 
     @Test
-    void saveMedia_whenFileNameIsNull_thenOk() {
-        byte[] pngFileContent = new byte[] {};
+    void saveMedia_whenFileNameIsNull_thenOk() throws Exception {
+        byte[] pngFileContent = "png-bytes".getBytes();
         MultipartFile multipartFile = new MockMultipartFile(
             "file",
             "example.png",
@@ -199,6 +206,7 @@ class MediaServiceUnitTest {
             pngFileContent
         );
         MediaPostVm mediaPostVm = new MediaPostVm("media", multipartFile, null);
+        when(fileSystemRepository.persistFile(eq("example.png"), any(byte[].class))).thenReturn("/tmp/example.png");
 
         when(mediaRepository.save(any(Media.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
@@ -206,11 +214,14 @@ class MediaServiceUnitTest {
         assertNotNull(mediaSave);
         assertEquals("media", mediaSave.getCaption());
         assertEquals("example.png", mediaSave.getFileName());
+        assertEquals("/tmp/example.png", mediaSave.getFilePath());
+        verify(fileSystemRepository)
+            .persistFile(eq("example.png"), argThat(bytes -> Arrays.equals(bytes, pngFileContent)));
     }
 
     @Test
-    void saveMedia_whenFileNameIsEmpty_thenOk() {
-        byte[] pngFileContent = new byte[] {};
+    void saveMedia_whenFileNameIsEmpty_thenOk() throws Exception {
+        byte[] pngFileContent = "png-bytes".getBytes();
         MultipartFile multipartFile = new MockMultipartFile(
             "file",
             "example.png",
@@ -218,6 +229,7 @@ class MediaServiceUnitTest {
             pngFileContent
         );
         MediaPostVm mediaPostVm = new MediaPostVm("media", multipartFile, "");
+        when(fileSystemRepository.persistFile(eq("example.png"), any(byte[].class))).thenReturn("/tmp/example.png");
 
         when(mediaRepository.save(any(Media.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
@@ -225,11 +237,13 @@ class MediaServiceUnitTest {
         assertNotNull(mediaSave);
         assertEquals("media", mediaSave.getCaption());
         assertEquals("example.png", mediaSave.getFileName());
+        verify(fileSystemRepository)
+            .persistFile(eq("example.png"), argThat(bytes -> Arrays.equals(bytes, pngFileContent)));
     }
 
     @Test
-    void saveMedia_whenFileNameIsBlank_thenOk() {
-        byte[] pngFileContent = new byte[] {};
+    void saveMedia_whenFileNameIsBlank_thenOk() throws Exception {
+        byte[] pngFileContent = "png-bytes".getBytes();
         MultipartFile multipartFile = new MockMultipartFile(
             "file",
             "example.png",
@@ -237,6 +251,7 @@ class MediaServiceUnitTest {
             pngFileContent
         );
         MediaPostVm mediaPostVm = new MediaPostVm("media", multipartFile, "   ");
+        when(fileSystemRepository.persistFile(eq("example.png"), any(byte[].class))).thenReturn("/tmp/example.png");
 
         when(mediaRepository.save(any(Media.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
@@ -244,6 +259,38 @@ class MediaServiceUnitTest {
         assertNotNull(mediaSave);
         assertEquals("media", mediaSave.getCaption());
         assertEquals("example.png", mediaSave.getFileName());
+        verify(fileSystemRepository)
+            .persistFile(eq("example.png"), argThat(bytes -> Arrays.equals(bytes, pngFileContent)));
+    }
+
+    @Test
+    void saveMedia_whenPersistingFileFails_thenPropagateExceptionAndSkipRepositorySave() throws Exception {
+        byte[] pngFileContent = "png-bytes".getBytes();
+        MultipartFile multipartFile = new MockMultipartFile(
+            "file",
+            "example.png",
+            "image/png",
+            pngFileContent
+        );
+        MediaPostVm mediaPostVm = new MediaPostVm("media", multipartFile, "fileName");
+        IOException exception = new IOException("disk full");
+        when(fileSystemRepository.persistFile(eq("fileName"), any(byte[].class))).thenThrow(exception);
+
+        IOException thrown = assertThrows(IOException.class, () -> mediaService.saveMedia(mediaPostVm));
+
+        assertEquals("disk full", thrown.getMessage());
+        verifyNoInteractions(mediaRepository);
+    }
+
+    @Test
+    void getFile_whenMediaNameNotMatchByCaseInsensitiveComparison_thenDoNotReadFile() {
+        when(mediaRepository.findById(1L)).thenReturn(Optional.ofNullable(media));
+
+        MediaDto mediaDto = mediaService.getFile(1L, "different-file");
+
+        assertNull(mediaDto.getMediaType());
+        assertNull(mediaDto.getContent());
+        verifyNoInteractions(fileSystemRepository);
     }
 
     @Test
@@ -301,6 +348,17 @@ class MediaServiceUnitTest {
         assertFalse(medias.isEmpty());
         verify(mediaVmMapper, times(existingMedias.size())).toVm(any());
         assertThat(medias).allMatch(m -> m.getUrl() != null);
+    }
+
+    @Test
+    void getFileByIds_whenRepositoryReturnsEmpty_thenReturnEmptyList() {
+        when(mediaRepository.findAllById(List.of(999L))).thenReturn(List.of());
+
+        var medias = mediaService.getMediaByIds(List.of(999L));
+
+        assertThat(medias).isEmpty();
+        verifyNoInteractions(mediaVmMapper);
+        verifyNoMoreInteractions(yasConfig);
     }
 
     private static @NotNull Media getMedia(Long id, String name) {
