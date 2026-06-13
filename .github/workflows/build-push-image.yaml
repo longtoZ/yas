@@ -1,0 +1,63 @@
+name: Build and push image
+
+# Reusable workflow: builds a service's jar, then builds and pushes its Docker
+# image to Docker Hub tagged with the commit SHA (and a sanitized branch name).
+# Called by the per-service *-image-ci.yaml workflows on every branch push.
+
+on:
+  workflow_call:
+    inputs:
+      service:
+        description: 'Service directory / module name (e.g. payment)'
+        required: true
+        type: string
+    secrets:
+      DOCKERHUB_USERNAME:
+        required: true
+      DOCKERHUB_TOKEN:
+        required: true
+
+jobs:
+  build-push:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # JDK 25 + Maven cache (shared composite action)
+      - uses: ./.github/workflows/actions
+
+      - name: Build jar (${{ inputs.service }})
+        run: mvn clean install -pl ${{ inputs.service }} -am -DskipTests
+
+      - name: Compute image tags
+        id: meta
+        run: |
+          # Docker tags can't contain '/', so sanitize branch names like feat/x -> feat-x
+          branch="${GITHUB_REF_NAME//\//-}"
+          echo "branch=${branch}" >> "$GITHUB_OUTPUT"
+          echo "sha=${GITHUB_SHA}"  >> "$GITHUB_OUTPUT"
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Build and push image
+        uses: docker/build-push-action@v6
+        with:
+          context: ./${{ inputs.service }}
+          file: ./${{ inputs.service }}/Dockerfile
+          push: true
+          tags: |
+            ${{ secrets.DOCKERHUB_USERNAME }}/yas-${{ inputs.service }}:${{ steps.meta.outputs.sha }}
+            ${{ secrets.DOCKERHUB_USERNAME }}/yas-${{ inputs.service }}:${{ steps.meta.outputs.branch }}
+
+      - name: Summary
+        run: |
+          echo "### Pushed \`yas-${{ inputs.service }}\` :rocket:" >> "$GITHUB_STEP_SUMMARY"
+          echo "- \`${{ secrets.DOCKERHUB_USERNAME }}/yas-${{ inputs.service }}:${{ steps.meta.outputs.sha }}\` (commit id)" >> "$GITHUB_STEP_SUMMARY"
+          echo "- \`${{ secrets.DOCKERHUB_USERNAME }}/yas-${{ inputs.service }}:${{ steps.meta.outputs.branch }}\` (branch)" >> "$GITHUB_STEP_SUMMARY"
