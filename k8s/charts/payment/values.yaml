@@ -1,7 +1,10 @@
 backend:
   image:
-    repository: ghcr.io/nashtech-garage/yas-payment
-    tag: latest
+    # Use the fork's own image: upstream yas-payment:latest is broken on this
+    # fork (Liquibase validation / renamed `enabled` column). baohuyhuy/yas-payment
+    # is built by payment-image-ci.yaml.
+    repository: baohuyhuy/yas-payment
+    tag: main
 
   nameOverride: payment
   fullnameOverride: payment

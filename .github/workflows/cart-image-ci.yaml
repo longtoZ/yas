@@ -1,0 +1,22 @@
+name: cart image ci
+
+# On any branch push touching cart, build the image tagged with the commit id
+# (and branch name) and push to Docker Hub. Reuses build-push-image.yaml.
+
+on:
+  push:
+    paths:
+      - 'cart/**'
+      - 'pom.xml'
+      - '.github/workflows/cart-image-ci.yaml'
+      - '.github/workflows/build-push-image.yaml'
+  workflow_dispatch:
+
+jobs:
+  build-push:
+    uses: ./.github/workflows/build-push-image.yaml
+    with:
+      service: cart
+    secrets:
+      DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+      DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
