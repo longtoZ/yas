@@ -34,10 +34,10 @@ jobs:
         uses: helm/chart-releaser-action@v1.5.0
         with:
           charts_dir: k8s/charts
-          # Skip charts whose <name>-<version> GitHub release already exists,
-          # instead of failing with 422 already_exists. A chart is (re)published
-          # only when its Chart.yaml version is bumped — the standard chart-releaser
-          # workflow. Lets values.yaml-only edits land without a version bump.
-          skip_existing: true
         env:
           CR_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
+          # Skip charts whose <name>-<version> release already exists instead of
+          # failing with 422 already_exists. The action has no skip_existing input;
+          # cr reads it from the CR_ env prefix. A chart is (re)published only when
+          # its Chart.yaml version is bumped — standard chart-releaser behavior.
+          CR_SKIP_EXISTING: "true"
