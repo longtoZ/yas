@@ -87,11 +87,10 @@ jobs:
             [backoffice-ui]=ui
           )
 
-          # Default every service to the `main` tag.
-          declare -A TAG
-          for svc in "${!SUBCHART[@]}"; do TAG[$svc]=main; done
-
-          # Apply developer overrides: "tax=dev_tax product=feat_x"
+          # Branch override per service, only for services the developer names.
+          # Services NOT listed keep their chart-default (upstream) image, since
+          # only overridden services have a baohuyhuy/yas-<svc> image in the registry.
+          declare -A BRANCH
           for pair in $OVERRIDES; do
             svc="${pair%%=*}"
             branch="${pair#*=}"
@@ -99,21 +98,41 @@ jobs:
               echo "::error::Unknown service '$svc' in overrides"; exit 1
             fi
             # Docker tags can't contain '/', mirror the CI sanitization.
-            TAG[$svc]="${branch//\//-}"
+            BRANCH[$svc]="${branch//\//-}"
           done
 
+          # Read a chart's default image repository/tag from its values.yaml,
+          # under the backend|ui subchart key (handles non-uniform upstream names
+          # like storefront-ui -> yas-storefront).
+          default_field() { # $1=key $2=svc $3=field(repository|tag)
+            awk "/^$1:/{f=1} f&&/$3:/{print \$2; exit}" "k8s/charts/$2/values.yaml"
+          }
+
           echo "## developer_build deployment" >> "$GITHUB_STEP_SUMMARY"
-          echo "| service | image tag |" >> "$GITHUB_STEP_SUMMARY"
-          echo "|---------|-----------|" >> "$GITHUB_STEP_SUMMARY"
+          echo "| service | image | source |" >> "$GITHUB_STEP_SUMMARY"
+          echo "|---------|-------|--------|" >> "$GITHUB_STEP_SUMMARY"
 
           for svc in $(echo "${!SUBCHART[@]}" | tr ' ' '\n' | sort); do
             key="${SUBCHART[$svc]}"
-            tag="${TAG[$svc]}"
-            echo "==> $svc : ${DOCKERHUB_USER}/yas-${svc}:$tag (key $key.image)"
+            if [[ -n "${BRANCH[$svc]:-}" ]]; then
+              # Developer-named service -> dev image built by CI.
+              repo="${DOCKERHUB_USER}/yas-${svc}"
+              tag="${BRANCH[$svc]}"
+              src="override"
+            else
+              # Everyone else -> chart default upstream image.
+              repo="$(default_field "$key" "$svc" repository)"
+              tag="$(default_field "$key" "$svc" tag)"
+              src="default"
+            fi
+            echo "==> $svc : ${repo}:${tag} (key $key.image, $src)"
+            # Vendored subchart tgz (file://../backend|ui) isn't committed, so
+            # rebuild it from Chart.lock into charts/ before upgrading.
+            helm dependency build "k8s/charts/$svc"
             helm upgrade --install "$svc" "k8s/charts/$svc" -n "$NS" --reuse-values \
-              --set "${key}.image.repository=${DOCKERHUB_USER}/yas-${svc}" \
+              --set "${key}.image.repository=${repo}" \
               --set "${key}.image.tag=${tag}"
-            echo "| \`$svc\` | \`$tag\` |" >> "$GITHUB_STEP_SUMMARY"
+            echo "| \`$svc\` | \`${repo}:${tag}\` | $src |" >> "$GITHUB_STEP_SUMMARY"
           done
 
       - name: Print access info
