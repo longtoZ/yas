@@ -13,7 +13,8 @@ backend:
   ingress:
     enabled: true
     host: storefront.yas.local.com
-    path: /
+    path: /api
+    pathType: Prefix
 
   extraEnvs:
     - name: SPRING_PROFILES_ACTIVE

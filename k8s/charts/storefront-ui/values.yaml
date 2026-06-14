@@ -20,7 +20,10 @@ ui:
     - name: API_BASE_PATH
       value: http://storefront.yas.local.com/api
   ingress:
-    enabled: false
+    enabled: true
+    host: storefront.yas.local.com
+    path: /
+    pathType: Prefix
 
 #storefrontEnvProduction: |
 #  API_BASE_PATH=http://storefront.yas.local.com/api

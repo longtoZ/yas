@@ -11,7 +11,8 @@ backend:
   ingress:
     enabled: true
     host: backoffice.yas.local.com
-    path: /
+    path: /api
+    pathType: Prefix
   extraEnvs:
     - name: SPRING_PROFILES_ACTIVE
       value: prod

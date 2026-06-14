@@ -5,4 +5,7 @@ ui:
   nameOverride: backoffice-ui
   fullnameOverride: backoffice-ui
   ingress:
-    enabled: false
+    enabled: true
+    host: backoffice.yas.local.com
+    path: /
+    pathType: Prefix
