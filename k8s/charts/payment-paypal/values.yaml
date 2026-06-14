@@ -1,4 +1,8 @@
 backend:
+  # payment-paypal has no Spring Boot entrypoint (no @SpringBootApplication /
+  # main class), so it cannot run as a service — deploy 0 replicas to keep it
+  # from crashlooping. Set back to 1 if an application class is ever added.
+  replicaCount: 0
   image:
     repository: baohuyhuy/yas-payment-paypal
     tag: main
