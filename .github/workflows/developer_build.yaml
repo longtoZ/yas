@@ -42,10 +42,15 @@ jobs:
           chmod 600 "$HOME/.kube/config"
           echo "KUBECONFIG=$HOME/.kube/config" >> "$GITHUB_ENV"
 
-      - name: Install helm & kubectl
+      - name: Install helm
         uses: azure/setup-helm@v4
         with:
           version: v3.15.4
+
+      - name: Install kubectl
+        uses: azure/setup-kubectl@v4
+        with:
+          version: v1.30.0
 
       - name: Sanity check cluster access
         run: kubectl get nodes
