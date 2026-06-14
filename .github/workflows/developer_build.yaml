@@ -104,7 +104,7 @@ jobs:
           for svc in $(echo "${!SUBCHART[@]}" | tr ' ' '\n' | sort); do
             key="${SUBCHART[$svc]}"
             tag="${TAG[$svc]}"
-            echo "==> $svc : baohuyhuy/yas-$svc:$tag (key $key.image)"
+            echo "==> $svc : ${DOCKERHUB_USER}/yas-${svc}:$tag (key $key.image)"
             helm upgrade --install "$svc" "k8s/charts/$svc" -n "$NS" --reuse-values \
               --set "${key}.image.repository=${DOCKERHUB_USER}/yas-${svc}" \
               --set "${key}.image.tag=${tag}"
