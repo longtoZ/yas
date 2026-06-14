@@ -1,0 +1,89 @@
+name: teardown
+
+# CD teardown job (assignment §5). Manually removes a developer_build deployment:
+# helm-uninstalls selected services (or all), or deletes the whole namespace.
+# Mirrors developer_build's runner/kubeconfig setup.
+
+on:
+  workflow_dispatch:
+    inputs:
+      services:
+        description: 'Space-separated services to uninstall, or "all" for every app service. Ignored if delete_namespace is true.'
+        required: false
+        default: 'all'
+        type: string
+      namespace:
+        description: 'Target namespace'
+        required: false
+        default: 'yas'
+        type: string
+      delete_namespace:
+        description: 'Delete the ENTIRE namespace (removes everything, incl. infra/PVCs). Overrides "services".'
+        required: false
+        default: false
+        type: boolean
+
+jobs:
+  teardown:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Set up kubeconfig
+        run: |
+          mkdir -p "$HOME/.kube"
+          echo "${{ secrets.KUBECONFIG }}" > "$HOME/.kube/config"
+          chmod 600 "$HOME/.kube/config"
+          echo "KUBECONFIG=$HOME/.kube/config" >> "$GITHUB_ENV"
+
+      - name: Install helm
+        uses: azure/setup-helm@v4
+        with:
+          version: v3.15.4
+
+      - name: Install kubectl
+        uses: azure/setup-kubectl@v4
+        with:
+          version: v1.30.0
+
+      - name: Sanity check cluster access
+        run: kubectl get nodes
+
+      - name: Teardown
+        env:
+          SERVICES: ${{ inputs.services }}
+          NS: ${{ inputs.namespace }}
+          DELETE_NS: ${{ inputs.delete_namespace }}
+        run: |
+          set -euo pipefail
+
+          # All app services developer_build can deploy (helm release names).
+          ALL="cart customer inventory location media order payment payment-paypal \
+               product promotion rating recommendation sampledata search tax webhook \
+               storefront-bff backoffice-bff storefront-ui backoffice-ui"
+
+          echo "## teardown" >> "$GITHUB_STEP_SUMMARY"
+
+          if [[ "$DELETE_NS" == "true" ]]; then
+            echo "Deleting entire namespace \`$NS\`..." | tee -a "$GITHUB_STEP_SUMMARY"
+            kubectl delete namespace "$NS" --ignore-not-found
+            echo "- namespace \`$NS\` deleted" >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+
+          if [[ "$SERVICES" == "all" ]]; then
+            targets="$ALL"
+          else
+            targets="$SERVICES"
+          fi
+
+          echo "Uninstalling: $targets" | tee -a "$GITHUB_STEP_SUMMARY"
+          echo "| service | result |" >> "$GITHUB_STEP_SUMMARY"
+          echo "|---------|--------|" >> "$GITHUB_STEP_SUMMARY"
+          for svc in $targets; do
+            if helm status "$svc" -n "$NS" >/dev/null 2>&1; then
+              helm uninstall "$svc" -n "$NS"
+              echo "| \`$svc\` | uninstalled |" >> "$GITHUB_STEP_SUMMARY"
+            else
+              echo "::warning::release '$svc' not found in $NS, skipping"
+              echo "| \`$svc\` | not found |" >> "$GITHUB_STEP_SUMMARY"
+            fi
+          done
