@@ -29,3 +29,7 @@ hs_err_pid*
 .settings*
 .vscode
 *.iml
+
+CLAUDE.md
+Project02_HKII_25_26.txt
+.claude
