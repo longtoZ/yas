@@ -110,6 +110,9 @@ jobs:
             key="${SUBCHART[$svc]}"
             tag="${TAG[$svc]}"
             echo "==> $svc : ${DOCKERHUB_USER}/yas-${svc}:$tag (key $key.image)"
+            # Vendored subchart tgz (file://../backend|ui) isn't committed, so
+            # rebuild it from Chart.lock into charts/ before upgrading.
+            helm dependency build "k8s/charts/$svc"
             helm upgrade --install "$svc" "k8s/charts/$svc" -n "$NS" --reuse-values \
               --set "${key}.image.repository=${DOCKERHUB_USER}/yas-${svc}" \
               --set "${key}.image.tag=${tag}"
