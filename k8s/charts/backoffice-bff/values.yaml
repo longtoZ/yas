@@ -8,10 +8,11 @@ backend:
   deployment:
     annotations:
       configmap.reloader.stakater.com/reload: "yas-gateway-routes-config-configmap,backoffice-bff-extra-configmap"
+  # BFF gateway is the single entry point (UI + /api + /oauth2 login) at /.
   ingress:
     enabled: true
     host: backoffice.yas.local.com
-    path: /api
+    path: /
     pathType: Prefix
   extraEnvs:
     - name: SPRING_PROFILES_ACTIVE

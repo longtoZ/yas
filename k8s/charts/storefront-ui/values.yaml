@@ -19,11 +19,10 @@ ui:
   extraEnvs:
     - name: API_BASE_PATH
       value: http://storefront.yas.local.com/api
+  # UI is served by the storefront-bff gateway (its /** route), so no direct
+  # ingress — the BFF must own the host to handle /api and /oauth2 login.
   ingress:
-    enabled: true
-    host: storefront.yas.local.com
-    path: /
-    pathType: Prefix
+    enabled: false
 
 #storefrontEnvProduction: |
 #  API_BASE_PATH=http://storefront.yas.local.com/api
