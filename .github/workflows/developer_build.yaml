@@ -1,0 +1,131 @@
+name: developer_build
+
+# CD job (assignment §4). A developer triggers this manually, choosing which
+# branch to deploy for each service they changed. Every other service falls back
+# to the `main` tag. Images are the ones produced by the CI build-push workflow
+# (tagged with the sanitized branch name), so e.g. branch `dev_tax` -> tag `dev_tax`.
+#
+# NOTE: workflow_dispatch allows at most 10 inputs, but YAS has 20 deployable
+# services. Instead of one input per service we take a single space-separated
+# `overrides` field: "tax=dev_tax product=feat_x". Unlisted services use `main`.
+
+on:
+  workflow_dispatch:
+    inputs:
+      overrides:
+        description: 'Per-service branch overrides, space-separated: "tax=dev_tax product=feat_x". Unlisted services deploy the main tag.'
+        required: false
+        default: ''
+        type: string
+      namespace:
+        description: 'Target namespace'
+        required: false
+        default: 'yas'
+        type: string
+
+env:
+  DOCKERHUB_USER: ${{ secrets.DOCKERHUB_USERNAME }}
+  # Worker node public IP (NodePort target) used to print access URLs.
+  # Set repo variable WORKER_NODE_IP; falls back to a placeholder if unset.
+  WORKER_NODE_IP: ${{ vars.WORKER_NODE_IP }}
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up kubeconfig
+        run: |
+          mkdir -p "$HOME/.kube"
+          echo "${{ secrets.KUBECONFIG }}" > "$HOME/.kube/config"
+          chmod 600 "$HOME/.kube/config"
+          echo "KUBECONFIG=$HOME/.kube/config" >> "$GITHUB_ENV"
+
+      - name: Install helm
+        uses: azure/setup-helm@v4
+        with:
+          version: v3.15.4
+
+      - name: Install kubectl
+        uses: azure/setup-kubectl@v4
+        with:
+          version: v1.30.0
+
+      - name: Sanity check cluster access
+        run: kubectl get nodes
+
+      - name: Deploy services
+        env:
+          OVERRIDES: ${{ inputs.overrides }}
+          NS: ${{ inputs.namespace }}
+        run: |
+          set -euo pipefail
+
+          # All deployable services and their image-override subchart key.
+          # ui-based frontends use `ui.image.*`; everything else `backend.image.*`.
+          declare -A SUBCHART=(
+            [cart]=backend
+            [customer]=backend
+            [inventory]=backend
+            [location]=backend
+            [media]=backend
+            [order]=backend
+            [payment]=backend
+            [payment-paypal]=backend
+            [product]=backend
+            [promotion]=backend
+            [rating]=backend
+            [recommendation]=backend
+            [sampledata]=backend
+            [search]=backend
+            [tax]=backend
+            [webhook]=backend
+            [storefront-bff]=backend
+            [backoffice-bff]=backend
+            [storefront-ui]=ui
+            [backoffice-ui]=ui
+          )
+
+          # Default every service to the `main` tag.
+          declare -A TAG
+          for svc in "${!SUBCHART[@]}"; do TAG[$svc]=main; done
+
+          # Apply developer overrides: "tax=dev_tax product=feat_x"
+          for pair in $OVERRIDES; do
+            svc="${pair%%=*}"
+            branch="${pair#*=}"
+            if [[ -z "${SUBCHART[$svc]:-}" ]]; then
+              echo "::error::Unknown service '$svc' in overrides"; exit 1
+            fi
+            # Docker tags can't contain '/', mirror the CI sanitization.
+            TAG[$svc]="${branch//\//-}"
+          done
+
+          echo "## developer_build deployment" >> "$GITHUB_STEP_SUMMARY"
+          echo "| service | image tag |" >> "$GITHUB_STEP_SUMMARY"
+          echo "|---------|-----------|" >> "$GITHUB_STEP_SUMMARY"
+
+          for svc in $(echo "${!SUBCHART[@]}" | tr ' ' '\n' | sort); do
+            key="${SUBCHART[$svc]}"
+            tag="${TAG[$svc]}"
+            echo "==> $svc : ${DOCKERHUB_USER}/yas-${svc}:$tag (key $key.image)"
+            helm upgrade --install "$svc" "k8s/charts/$svc" -n "$NS" --reuse-values \
+              --set "${key}.image.repository=${DOCKERHUB_USER}/yas-${svc}" \
+              --set "${key}.image.tag=${tag}"
+            echo "| \`$svc\` | \`$tag\` |" >> "$GITHUB_STEP_SUMMARY"
+          done
+
+      - name: Print access info
+        run: |
+          IP="${WORKER_NODE_IP:-<WORKER_NODE_PUBLIC_IP>}"
+          {
+            echo "### Access the deployment"
+            echo "Add to your local hosts file (points the YAS domains at the worker node):"
+            echo '```'
+            echo "$IP  storefront.yas.local.com backoffice.yas.local.com api.yas.local.com"
+            echo '```'
+            echo "Then browse via the ingress NodePort:"
+            echo "- Storefront: http://storefront.yas.local.com:30080"
+            echo "- Backoffice: http://backoffice.yas.local.com:30080"
+          } >> "$GITHUB_STEP_SUMMARY"
