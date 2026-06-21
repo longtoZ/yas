@@ -1,0 +1,44 @@
+name: deploy-dev (GitOps bump)
+
+# Assignment §6.1: every change to main auto-deploys to the `dev` namespace.
+#
+# GitOps split: this app repo only builds images (the per-service *-image-ci.yaml
+# workflows push :main on every main commit). ArgoCD deploys from the config repo
+# (baohuyhuy/yas-deploy). dev tracks the mutable :main tag with pullPolicy: Always,
+# so to make ArgoCD actually roll the pods on a main change we bump a commit
+# annotation in yas-deploy's envs/dev/values.yaml. ArgoCD detects the git change,
+# syncs dev, and the rollout re-pulls the freshly built :main images.
+#
+# Requires repo secret DEPLOY_REPO_TOKEN: a PAT (or fine-grained token) with
+# contents:write on baohuyhuy/yas-deploy.
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  bump-dev:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out yas-deploy
+        uses: actions/checkout@v4
+        with:
+          repository: baohuyhuy/yas-deploy
+          token: ${{ secrets.DEPLOY_REPO_TOKEN }}
+
+      - name: Bump dev commit annotation to ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          SHA="${GITHUB_SHA::12}"
+          # Both backend.podAnnotations and ui.podAnnotations carry the marker.
+          sed -i "s#yas.dev/commit:.*#yas.dev/commit: ${SHA}#g" envs/dev/values.yaml
+          git config user.name  "yas-ci"
+          git config user.email "yas-ci@users.noreply.github.com"
+          if git diff --quiet; then
+            echo "No change to commit"; exit 0
+          fi
+          git add envs/dev/values.yaml
+          git commit -m "deploy(dev): main @ ${SHA}"
+          git push
+          echo "### dev bumped to main @ \`${SHA}\` :rocket:" >> "$GITHUB_STEP_SUMMARY"
