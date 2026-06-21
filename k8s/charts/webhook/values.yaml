@@ -1,8 +1,0 @@
-backend:
-  image:
-    repository: baohuyhuy/yas-webhook
-    tag: main
-
-  nameOverride: webhook
-  fullnameOverride: webhook
-  databaseName: webhook
