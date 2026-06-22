@@ -35,6 +35,14 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # The Helm charts now live in the GitOps config repo (yas-deploy), not here.
+      # Check them out so this job can `helm upgrade` from them.
+      - name: Check out charts from yas-deploy
+        uses: actions/checkout@v4
+        with:
+          repository: baohuyhuy/yas-deploy
+          path: yas-deploy
+
       - name: Set up kubeconfig
         run: |
           mkdir -p "$HOME/.kube"
@@ -105,7 +113,7 @@ jobs:
           # under the backend|ui subchart key (handles non-uniform upstream names
           # like storefront-ui -> yas-storefront).
           default_field() { # $1=key $2=svc $3=field(repository|tag)
-            awk "/^$1:/{f=1} f&&/$3:/{print \$2; exit}" "k8s/charts/$2/values.yaml"
+            awk "/^$1:/{f=1} f&&/$3:/{print \$2; exit}" "yas-deploy/charts/$2/values.yaml"
           }
 
           echo "## developer_build deployment" >> "$GITHUB_STEP_SUMMARY"
@@ -128,8 +136,8 @@ jobs:
             echo "==> $svc : ${repo}:${tag} (key $key.image, $src)"
             # Vendored subchart tgz (file://../backend|ui) isn't committed, so
             # rebuild it from Chart.lock into charts/ before upgrading.
-            helm dependency build "k8s/charts/$svc"
-            helm upgrade --install "$svc" "k8s/charts/$svc" -n "$NS" --reuse-values \
+            helm dependency build "yas-deploy/charts/$svc"
+            helm upgrade --install "$svc" "yas-deploy/charts/$svc" -n "$NS" --reuse-values \
               --set "${key}.image.repository=${repo}" \
               --set "${key}.image.tag=${tag}"
             echo "| \`$svc\` | \`${repo}:${tag}\` | $src |" >> "$GITHUB_STEP_SUMMARY"
