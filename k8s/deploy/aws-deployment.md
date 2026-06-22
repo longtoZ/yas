@@ -13,7 +13,7 @@ infrastructure scripts (`setup-keycloak.sh`, `setup-redis.sh`, `setup-cluster.sh
 | Component | Choice |
 |---|---|
 | Kubernetes | `kubeadm` v1.30, self-managed on EC2 |
-| Nodes | master `t3.medium` (2 vCPU/4 GB), worker `t3.2xlarge` (8 vCPU/32 GB) |
+| Nodes | master `t3.medium` (2 vCPU/4 GB), worker `m5.4xlarge` (16 vCPU/64 GB) |
 | OS | Ubuntu Server 22.04 LTS |
 | Container runtime | containerd (systemd cgroups) |
 | CNI | Calico v3.28.0 (pod CIDR `192.168.0.0/16`) |
@@ -46,7 +46,11 @@ Inbound rules:
 
 ### 1.3 EC2 instances
 - **master** — `t3.medium`, 30 GB gp3, SG `yas-k8s-sg`, key `yas-k8s`
-- **worker** — `t3.2xlarge`, 60 GB gp3, SG `yas-k8s-sg`, key `yas-k8s`
+- **worker** — `m5.4xlarge`, 60 GB gp3, SG `yas-k8s-sg`, key `yas-k8s`
+  (resized in place from `t3.2xlarge` on 2026-06-22 to run all three full copies — yas + dev +
+  staging — at once; dedicated CPU avoids the t3 burst-credit boot stampede. In-place resize:
+  stop → change instance type → start; same root EBS + Elastic IP persist, so local-path PVC data
+  and `WORKER_EIP` are unchanged. Never terminate/replace the volume.)
 
 ### 1.4 Elastic IPs
 Allocate 2 EIPs and associate one to each instance. Record:
