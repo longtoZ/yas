@@ -91,6 +91,17 @@ class ProductServiceTest {
     }
 
     @Test
+    void getProductById_whenProductsAreNull_shouldReturnNull() {
+        ProductService productServiceSpy = Mockito.spy(productService);
+
+        doReturn(null).when(productServiceSpy).getProducts(List.of(1L));
+
+        ProductThumbnailVm result = productServiceSpy.getProductById(1L);
+
+        assertThat(result).isNull();
+    }
+
+    @Test
     void existsById_whenProductExists_shouldReturnTrue() {
         ProductService productServiceSpy = Mockito.spy(productService);
         ProductThumbnailVm product = getProductThumbnailVms().getFirst();
@@ -107,6 +118,17 @@ class ProductServiceTest {
         ProductService productServiceSpy = Mockito.spy(productService);
 
         doReturn(Collections.emptyList()).when(productServiceSpy).getProducts(List.of(1L));
+
+        boolean result = productServiceSpy.existsById(1L);
+
+        assertThat(result).isFalse();
+    }
+
+    @Test
+    void existsById_whenProductResponseIsNull_shouldReturnFalse() {
+        ProductService productServiceSpy = Mockito.spy(productService);
+
+        doReturn(null).when(productServiceSpy).getProducts(List.of(1L));
 
         boolean result = productServiceSpy.existsById(1L);
 
