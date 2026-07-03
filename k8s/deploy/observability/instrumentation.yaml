@@ -1,0 +1,36 @@
+# OpenTelemetry auto-instrumentation for the YAS Java services.
+# The opentelemetry-operator webhook injects the Java agent (init container +
+# OTEL_* env) into any pod annotated with:
+#   instrumentation.opentelemetry.io/inject-java: "true"
+# The CR must exist in every namespace where injection happens:
+#   kubectl apply -f instrumentation.yaml -n yas
+#   kubectl apply -f instrumentation.yaml -n dev
+#   kubectl apply -f instrumentation.yaml -n staging
+apiVersion: opentelemetry.io/v1alpha1
+kind: Instrumentation
+metadata:
+  name: yas-instrumentation
+spec:
+  exporter:
+    # http/protobuf receiver of the shared collector (java agent 2.x default protocol)
+    endpoint: http://opentelemetry-collector.observability:4318
+  propagators:
+    - tracecontext
+    - baggage
+  sampler:
+    type: parentbased_traceidratio
+    argument: "1"
+  resource:
+    resourceAttributes:
+      service.namespace: yas-msa
+  java:
+    env:
+      - name: OTEL_TRACES_EXPORTER
+        value: otlp
+      - name: OTEL_METRICS_EXPORTER
+        value: otlp
+      # logs are collected from stdout by promtail; avoid double-shipping
+      - name: OTEL_LOGS_EXPORTER
+        value: none
+      - name: OTEL_INSTRUMENTATION_LOGBACK-MDC_ADD-BAGGAGE
+        value: "true"
