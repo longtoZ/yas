@@ -8,6 +8,10 @@ loki:
   commonConfig:
     replication_factor: 1
   auth_enabled: false
+  # absorb promtail backfill bursts (default 4MB/s causes 429 storms)
+  limits_config:
+    ingestion_rate_mb: 16
+    ingestion_burst_size_mb: 32
 test:
   enabled: false
 storage:

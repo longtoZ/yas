@@ -2,15 +2,20 @@ hostname: &hostname grafana.yas.local.com
 prometheus:
   prometheusSpec:
     enableRemoteWriteReceiver: true
+    retention: 7d
+    storageSpec:
+      volumeClaimTemplate:
+        spec:
+          accessModes: ["ReadWriteOnce"]
+          resources:
+            requests:
+              storage: 20Gi
 grafana:
-  grafana.ini:
-    database:
-      type: postgres
-      host: postgresql.postgres:5432
-      name: grafana
-      user: yasadminuser
-      password: admin
-      ssl_mode: require
+  # sqlite on a PVC instead of the postgres backend: datasources/dashboards are
+  # provisioned by the grafana-operator anyway, so no DB credentials are needed.
+  persistence:
+    enabled: true
+    size: 2Gi
   adminUser: admin
   adminPassword: admin
   ingress:

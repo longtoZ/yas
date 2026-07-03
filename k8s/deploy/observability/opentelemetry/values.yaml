@@ -1,3 +1,8 @@
+# Pin the contrib distribution: new enough for the operator-injected
+# telemetry `readers` config, old enough to still include the `loki` exporter
+# (removed upstream in later releases).
+image: otel/opentelemetry-collector-contrib:0.119.0
+
 opentelemetryCollectorConfig:
   receivers:
     otlp:
@@ -12,7 +17,7 @@ opentelemetryCollectorConfig:
           endpoint: 0.0.0.0:3500
       use_incoming_timestamp: true
   processors:
-    batch:
+    batch: {}
     attributes:
       actions:
         - action: insert
@@ -21,14 +26,26 @@ opentelemetryCollectorConfig:
         - action: insert
           key: loki.format
           value: raw
+    # Blank out descriptions that differ between instrumentation libraries,
+    # otherwise Prometheus remote-write rejects the series (upstream FIXME).
+    transform:
+      metric_statements:
+        - context: metric
+          statements:
+            - set(description, "") where name == "queueSize"
+            - set(description, "") where name == "rpc.server.duration"
 
   exporters:
-    logging:
-      verbosity: detailed
+    debug:
+      verbosity: basic
     loki:
       endpoint: http://loki-gateway/loki/api/v1/push
     otlphttp:
       endpoint: http://tempo:4318
+    prometheusremotewrite:
+      endpoint: http://prometheus-kube-prometheus-prometheus:9090/api/v1/write
+      resource_to_telemetry_conversion:
+        enabled: true # Convert resource attributes to metric labels
   service:
     pipelines:
       logs:
@@ -39,3 +56,7 @@ opentelemetryCollectorConfig:
         receivers: [otlp]
         processors: [batch]
         exporters: [otlphttp]
+      metrics:
+        receivers: [otlp]
+        processors: [transform, batch]
+        exporters: [prometheusremotewrite]

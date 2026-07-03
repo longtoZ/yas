@@ -386,6 +386,64 @@ pipeline (per-branch images + `developer_build`) is meant to manage.
 
 ---
 
+## 9. Observability (Updated_Requirements.txt, deployed 2026-07-03)
+
+Grafana-stack observability in the `observability` namespace, mirroring the project's
+`docker-compose.o11y.yml` design (screenshots: `screenshots/yas-grafana-*.png`):
+
+```
+apps (OTel java agent, auto-injected) ──OTLP──▶ opentelemetry-collector ──▶ Tempo   (traces)
+                                                            │──remote-write──▶ Prometheus (metrics)
+container stdout ──▶ promtail (DaemonSet) ──▶ collector ──▶ Loki    (logs)
+Grafana (kube-prometheus-stack) ◀── datasources/dashboards provisioned by grafana-operator
+```
+
+Components (all in `observability`): `grafana/loki` **5.48.0** (SimpleScalable + minio,
+raised ingestion limits in `observability/loki.values.yaml`), `grafana/tempo`,
+`prometheus-community/kube-prometheus-stack` (release **`prometheus`** — the name matters:
+ServiceMonitors and the tempo remote-write URL reference it), `opentelemetry-operator` +
+collector CR (`observability/opentelemetry`, image pinned to **contrib 0.119.0** — newer
+releases dropped the `loki` exporter, older ones can't parse the operator-injected
+telemetry `readers` block), `grafana-operator` + `observability/grafana` chart
+(Tempo/Loki datasources + JVM, HikariCP and the project **Observability Dashboard**).
+
+Install order (also in `setup-cluster.sh`, versions pinned here):
+
+```bash
+cd k8s/deploy
+helm upgrade --install loki grafana/loki --version 5.48.0 -n observability -f observability/loki.values.yaml
+helm upgrade --install opentelemetry-collector ./observability/opentelemetry -n observability
+helm upgrade --install prometheus prometheus-community/kube-prometheus-stack -n observability -f observability/prometheus.values.yaml
+helm upgrade --install grafana ./observability/grafana -n observability
+```
+
+**App wiring — OTel java agent auto-injection.** The service images do NOT bundle the
+agent (and the jars have no micrometer-tracing deps), so the opentelemetry-operator
+injects it. Per target namespace:
+
+```bash
+kubectl apply -f observability/instrumentation.yaml -n yas   # also dev / staging
+```
+
+plus `backend.podAnnotations."instrumentation.opentelemetry.io/inject-java": "true"` in
+each Java service chart (committed in yas-deploy charts). **Gotcha:** `helm upgrade
+--reuse-values` ignores new chart defaults — pass the annotation explicitly when
+upgrading an existing release:
+
+```bash
+helm upgrade <svc> ~/yas-deploy/charts/<svc> -n yas --reuse-values \
+  --set-string 'backend.podAnnotations.instrumentation\.opentelemetry\.io/inject-java=true'
+```
+
+**Access:** `http://grafana.yas.local.com` (admin/admin) — add the host to your laptop's
+`/etc/hosts` pointing at the worker EIP (same line as the other `*.yas.local.com` hosts);
+it is also in the CoreDNS `hosts` block and has an nginx ingress. Dashboards land in the
+default org ("Observability Dashboard", "JVM (Micrometer)", HikariCP + the
+kube-prometheus-stack cluster set); traces via **Explore → Tempo**, logs via
+**Explore → Loki** (logs→traces linked through the `traceId` derived field).
+
+---
+
 ## Appendix — Stop / start the instances
 
 EIPs keep public IPs stable, so after a stop/start you only need to start the nodes

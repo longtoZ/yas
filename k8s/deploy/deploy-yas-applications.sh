@@ -36,7 +36,9 @@ helm upgrade --install swagger-ui ../charts/swagger-ui \
 
 sleep 20
 
-for chart in {"cart","customer","inventory","location","media","order","payment","payment-paypal","product","promotion","rating","search","tax","recommendation","webhook","sampledata"} ; do
+# Only the services required by Updated_Requirements.txt (2026-07). Charts now
+# live in the yas-deploy config repo — adjust ../charts if it is checked out elsewhere.
+for chart in {"cart","customer","inventory","media","order","product","search","tax","sampledata"} ; do
     helm dependency build ../charts/"$chart"
     helm upgrade --install "$chart" ../charts/"$chart" \
     --namespace yas --create-namespace \

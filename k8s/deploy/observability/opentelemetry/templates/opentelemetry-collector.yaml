@@ -4,6 +4,9 @@ metadata:
   name: opentelemetry
 spec:
   mode: deployment
+  {{- with .Values.image }}
+  image: {{ . }}
+  {{- end }}
   ports:
     - name: loki
       port: 3500
