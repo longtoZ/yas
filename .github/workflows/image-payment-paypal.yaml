@@ -1,0 +1,22 @@
+name: payment-paypal image ci
+
+# On any branch push touching payment-paypal, build the image tagged with the commit id
+# (and branch name) and push to Docker Hub. Reuses reusable-build-push-image.yaml.
+
+on:
+  push:
+    paths:
+      - 'payment-paypal/**'
+      - 'pom.xml'
+      - '.github/workflows/image-payment-paypal.yaml'
+      - '.github/workflows/reusable-build-push-image.yaml'
+  workflow_dispatch:
+
+jobs:
+  build-push:
+    uses: ./.github/workflows/reusable-build-push-image.yaml
+    with:
+      service: payment-paypal
+    secrets:
+      DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+      DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}

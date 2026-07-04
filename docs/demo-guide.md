@@ -68,9 +68,9 @@ requirement, lists what to show, the exact commands, and what "success" looks li
 it to Docker Hub tagged with **the commit SHA and the branch name**.
 
 1. Show the workflow files:
-   - `.github/workflows/build-push-image.yaml` — reusable Maven build (jar → image),
-   - `.github/workflows/build-push-ui-image.yaml` — reusable Next.js build,
-   - one thin caller per service, e.g. `.github/workflows/tax-image-ci.yaml`.
+   - `.github/workflows/reusable-build-push-image.yaml` — reusable Maven build (jar → image),
+   - `.github/workflows/reusable-build-push-ui-image.yaml` — reusable Next.js build,
+   - one thin caller per service, e.g. `.github/workflows/image-tax.yaml`.
 
 2. Live run — push a trivial commit to the demo branch:
 
@@ -103,7 +103,7 @@ stays on the default tag.
    (namespace stays `yas`). Or from the CLI:
 
    ```bash
-   gh workflow run developer_build.yaml -f overrides="tax=dev_tax_service"
+   gh workflow run cd-developer-build.yaml -f overrides="tax=dev_tax_service"
    ```
 
    > One `overrides` input instead of one input per service because
