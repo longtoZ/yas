@@ -23,11 +23,18 @@ All commands assume `export KUBECONFIG=~/.kube/yas-config`.
 # istioctl 1.29.5 lives in ~/istio-1.29.5/bin (curl -L https://istio.io/downloadIstio | ISTIO_VERSION=1.29.5 sh -)
 istioctl x precheck
 istioctl install --set profile=minimal \
-  --set meshConfig.defaultConfig.holdApplicationUntilProxyStarts=true -y
+  --set meshConfig.defaultConfig.holdApplicationUntilProxyStarts=true \
+  --set meshConfig.enableTracing=false -y
 ```
 
 `holdApplicationUntilProxyStarts` makes app containers wait for the sidecar so
 Java services don't crash-loop on DB connections during rollouts.
+
+`enableTracing=false` disables Envoy's legacy tracing config (default: 1% random
+sampling, no collector). Without this, Envoy stamps a not-sampled trace context
+on every request entering the mesh, and the apps' OTel java agents (parentbased
+sampler) obey it — killing ~99% of application traces. Envoy spans were never
+exported anywhere, so nothing is lost; Kiali reads app traces from Tempo.
 
 ## 2. Join the yas workloads to the mesh
 
@@ -37,6 +44,17 @@ kubectl rollout restart deployment -n yas
 ```
 
 All pods become `2/2` (app + `istio-proxy`). Verify sync: `istioctl proxy-status`.
+
+**OTel-agent injection gotcha:** with `holdApplicationUntilProxyStarts`, Istio
+puts `istio-proxy` FIRST in the containers list, and the opentelemetry-operator
+injects `JAVA_TOOL_OPTIONS`/`OTEL_*` into `containers[0]` by default — i.e. into
+Envoy, not the Java app → meshed pods silently stop producing traces. Every Java
+chart must therefore set both pod annotations (already in yas-deploy charts):
+
+```yaml
+instrumentation.opentelemetry.io/inject-java: "true"
+instrumentation.opentelemetry.io/container-names: "<app-container-name>"
+```
 
 ## 3. Bring ingress-nginx into the mesh
 
