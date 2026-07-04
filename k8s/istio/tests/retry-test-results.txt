@@ -1,0 +1,20 @@
+### Retry policy verification (order->tax path) — 2026-07-04 04:34 UTC
+
+Setup:
+  41-virtualservice-tax-retry.yaml   — retries: attempts=3, perTryTimeout=2s, retryOn=5xx,reset,connect-failure,refused-stream
+  42-envoyfilter-tax-fault-500.yaml  — DEMO chaos: tax's server sidecar aborts 50% of inbound requests with HTTP 500
+  40-telemetry-access-logging.yaml   — Envoy access logs to observe each attempt
+
+--- PHASE 1: fault active, retry VirtualService NOT applied (20 calls from meshed client) ---
+200 500 500 500 500 500 500 500 500 200 200 500 200 500 200 200 200 200 500 500
+OK=8 FAIL=12   <- callers see the 500s
+
+--- PHASE 2: fault still active, retry VirtualService applied (20 calls) ---
+200 200 200 200 200 200 200 200 200 200 200 200 200 200 200 200 200 200 200 200
+OK=20 FAIL=0   <- sidecar retries mask ALL transient 500s
+
+--- Server-side access log (tax istio-proxy): same x-request-id = one client call, N attempts ---
+[2026-07-04T04:34:16.047Z] "GET /actuator/health HTTP/1.1" 500 FI fault_filter_abort - "-" 0 18 0 - "-" "curl/8.7.1" "d06296db-cb9d-42b2-9922-61cbc8c13d99" "tax:8090" "-" inbound|8090|| - 192.168.171.192:8090 192.168.171.131:42808 outbound_.8090_._.tax.yas.svc.cluster.local default
+[2026-07-04T04:34:16.049Z] "GET /actuator/health HTTP/1.1" 500 FI fault_filter_abort - "-" 0 18 0 - "-" "curl/8.7.1" "d06296db-cb9d-42b2-9922-61cbc8c13d99" "tax:8090" "-" inbound|8090|| - 192.168.171.192:8090 192.168.171.131:42816 outbound_.8090_._.tax.yas.svc.cluster.local default
+[2026-07-04T04:34:16.062Z] "GET /actuator/health HTTP/1.1" 200 - via_upstream - "-" 0 455 2 2 "-" "curl/8.7.1" "d06296db-cb9d-42b2-9922-61cbc8c13d99" "tax:8090" "192.168.171.192:8090" inbound|8090|| 127.0.0.6:33485 192.168.171.192:8090 192.168.171.131:42822 outbound_.8090_._.tax.yas.svc.cluster.local default
+(2x '500 FI fault_filter_abort' + 1x '200 via_upstream' sharing x-request-id d06296db... = 2 automatic retries)

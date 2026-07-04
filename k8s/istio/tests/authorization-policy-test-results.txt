@@ -1,0 +1,24 @@
+### AuthorizationPolicy verification — 2026-07-04 04:32 UTC
+Policy: only storefront-bff / backoffice-bff ServiceAccounts may call search (k8s/istio/30-authorization-policy-search.yaml)
+
+$ kubectl get authorizationpolicy -n yas
+NAME                    ACTION   AGE
+search-allow-bff-only   ALLOW    19s
+
+--- TEST 1: ALLOWED identity (pod running as ServiceAccount storefront-bff) ---
+$ kubectl exec -n yas curl-as-bff -- curl -s -o /dev/null -w '%{http_code}' "http://search/storefront/catalog-search?keyword=laptop&page=0"
+HTTP 404
+
+--- TEST 2: DENIED identity (pod running as ServiceAccount default) ---
+$ kubectl exec -n yas curl-mesh -- curl -s "http://search/storefront/catalog-search?keyword=laptop&page=0"
+RBAC: access denied (HTTP 403)
+
+--- TEST 3: real user flow still works (browser -> ingress -> storefront-bff -> search) ---
+$ curl http://storefront.yas.local.com:30080/api/search/storefront/catalog-search?keyword=laptop&page=0
+HTTP 200
+
+--- TEST 1b (corrected path — search serves /search/** after the BFF RewritePath) ---
+$ kubectl exec -n yas curl-as-bff -- curl -s -o /dev/null -w '%{http_code}' 'http://search/search/storefront/catalog-search?keyword=laptop&page=0'
+HTTP 200   <- ALLOWED (ServiceAccount storefront-bff)
+$ kubectl exec -n yas curl-mesh  -- curl -s 'http://search/search/storefront/catalog-search?keyword=laptop&page=0'
+RBAC: access denied (HTTP 403)   <- DENIED (ServiceAccount default)

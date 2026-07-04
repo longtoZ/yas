@@ -1,0 +1,16 @@
+### mTLS STRICT verification — 2026-07-04 04:24 UTC
+
+$ kubectl get peerauthentication -n yas
+NAME      MODE     AGE
+default   STRICT   4m6s
+
+--- TEST 1: meshed pod (yas/curl-mesh, has sidecar) -> product over mTLS ---
+$ kubectl exec -n yas curl-mesh -c curl-mesh -- curl -s -o /dev/null -w '%{http_code}' http://product:8090/actuator/health
+HTTP 200
+
+--- TEST 2: NON-mesh pod (default/mtls-test, no sidecar) -> product, plaintext REJECTED ---
+$ kubectl exec -n default mtls-test -- curl -v http://product.yas:8090/actuator/health
+* Connected to product.yas (10.107.12.21) port 8090
+* Recv failure: Connection reset by peer
+command terminated with exit code 56
+(curl exit code 56: Connection reset by peer — sidecar rejects non-mTLS traffic)
