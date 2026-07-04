@@ -1,0 +1,17 @@
+# mTLS requirement (assignment: Service Mesh bonus, item 1).
+# Namespace-wide STRICT: every workload in `yas` only accepts mutual-TLS
+# traffic from other mesh workloads. Plaintext (non-sidecar) clients are
+# rejected at the sidecar before reaching the app.
+#
+# The ingress-nginx controller keeps working because its pod carries an
+# outbound-only Istio sidecar (see README §3) and the Ingresses use
+# `nginx.ingress.kubernetes.io/service-upstream: "true"` so nginx forwards
+# to the Service VIP, letting Envoy upgrade the hop to mTLS.
+apiVersion: security.istio.io/v1
+kind: PeerAuthentication
+metadata:
+  name: default
+  namespace: yas
+spec:
+  mtls:
+    mode: STRICT

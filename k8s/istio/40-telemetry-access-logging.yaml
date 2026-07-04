@@ -1,0 +1,13 @@
+# Turn on Envoy access logging for every sidecar in `yas` (Telemetry API,
+# `envoy` = the built-in stdout text provider). Needed to observe retry
+# attempts: each retry shows up in the SERVER sidecar's log as a separate
+# entry sharing the same x-request-id.
+apiVersion: telemetry.istio.io/v1
+kind: Telemetry
+metadata:
+  name: access-logging
+  namespace: yas
+spec:
+  accessLogging:
+    - providers:
+        - name: envoy

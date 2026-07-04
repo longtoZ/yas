@@ -1,0 +1,67 @@
+# Persistent test clients for the mesh demos (mTLS / AuthorizationPolicy / retry).
+# Deployments instead of bare pods so they survive node stop/start — bare
+# kubectl-run pods end up in status Unknown after a reboot.
+#
+# Exec with the deploy/ prefix, e.g.:
+#   kubectl exec -n yas deploy/curl-mesh -c curl-mesh -- curl ...
+---
+# Meshed client, ServiceAccount `default` — the DENIED identity in the
+# AuthorizationPolicy demo, and the generic in-mesh caller.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: curl-mesh
+  namespace: yas
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: curl-mesh }
+  template:
+    metadata:
+      labels: { app: curl-mesh }
+    spec:
+      containers:
+        - name: curl-mesh
+          image: curlimages/curl:8.7.1
+          command: ["sleep", "infinity"]
+---
+# Meshed client running AS the storefront-bff ServiceAccount — the ALLOWED
+# identity in the AuthorizationPolicy demo.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: curl-as-bff
+  namespace: yas
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: curl-as-bff }
+  template:
+    metadata:
+      labels: { app: curl-as-bff }
+    spec:
+      serviceAccountName: storefront-bff
+      containers:
+        - name: curl-as-bff
+          image: curlimages/curl:8.7.1
+          command: ["sleep", "infinity"]
+---
+# NON-mesh client (default namespace = no sidecar injection) — proves STRICT
+# mTLS rejects plaintext.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mtls-test
+  namespace: default
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: mtls-test }
+  template:
+    metadata:
+      labels: { app: mtls-test }
+    spec:
+      containers:
+        - name: mtls-test
+          image: curlimages/curl:8.7.1
+          command: ["sleep", "infinity"]

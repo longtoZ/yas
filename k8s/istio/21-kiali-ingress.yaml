@@ -1,0 +1,21 @@
+# Expose Kiali through the existing ingress-nginx.
+# Browser access: add `<WORKER_EIP> kiali.yas.local.com` to your hosts file,
+# then open http://kiali.yas.local.com:30080 (or :80 via the hostPort).
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: kiali
+  namespace: istio-system
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: kiali.yas.local.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: kiali
+                port:
+                  number: 20001

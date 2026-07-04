@@ -1,0 +1,20 @@
+# Retry policy (assignment: Service Mesh bonus, test scenario 1 — "retryable").
+# Any HTTP call to `tax` that fails with a 5xx (or connection-level error) is
+# retried automatically by the CLIENT's sidecar, up to 3 extra attempts.
+# Callers (e.g. order) never see the transient 500s unless all 4 tries fail.
+apiVersion: networking.istio.io/v1
+kind: VirtualService
+metadata:
+  name: tax-retry
+  namespace: yas
+spec:
+  hosts:
+    - tax
+  http:
+    - route:
+        - destination:
+            host: tax
+      retries:
+        attempts: 3
+        perTryTimeout: 2s
+        retryOn: 5xx,reset,connect-failure,refused-stream

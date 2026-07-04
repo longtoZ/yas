@@ -1,0 +1,27 @@
+# AuthorizationPolicy (assignment: Service Mesh bonus, test scenario 2).
+# Only the two BFF gateways may call the `search` service; every other
+# workload identity gets HTTP 403 "RBAC: access denied" from search's sidecar.
+#
+# Identity = the caller's ServiceAccount, proven by its mTLS client cert
+# (SPIFFE principal cluster.local/ns/<ns>/sa/<serviceaccount>). This is why
+# STRICT mTLS is a prerequisite: without a verified client cert there is no
+# principal to authorize.
+#
+# ALLOW semantics: if any ALLOW policy matches the workload, everything not
+# matched by a rule is denied.
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: search-allow-bff-only
+  namespace: yas
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: search
+  action: ALLOW
+  rules:
+    - from:
+        - source:
+            principals:
+              - cluster.local/ns/yas/sa/storefront-bff
+              - cluster.local/ns/yas/sa/backoffice-bff
