@@ -5,7 +5,7 @@ name: developer_build
 # to the `main` tag. Images are the ones produced by the CI build-push workflow
 # (tagged with the sanitized branch name), so e.g. branch `dev_tax` -> tag `dev_tax`.
 #
-# NOTE: workflow_dispatch allows at most 10 inputs, but YAS has 20 deployable
+# NOTE: workflow_dispatch allows at most 10 inputs, but YAS has more deployable
 # services. Instead of one input per service we take a single space-separated
 # `overrides` field: "tax=dev_tax product=feat_x". Unlisted services use `main`.
 
@@ -72,23 +72,18 @@ jobs:
 
           # All deployable services and their image-override subchart key.
           # ui-based frontends use `ui.image.*`; everything else `backend.image.*`.
+          # Trimmed to the services kept per Updated_Requirements.txt — deploying
+          # anything outside this list would resurrect an uninstalled service.
           declare -A SUBCHART=(
             [cart]=backend
             [customer]=backend
             [inventory]=backend
-            [location]=backend
             [media]=backend
             [order]=backend
-            [payment]=backend
-            [payment-paypal]=backend
             [product]=backend
-            [promotion]=backend
-            [rating]=backend
-            [recommendation]=backend
             [sampledata]=backend
             [search]=backend
             [tax]=backend
-            [webhook]=backend
             [storefront-bff]=backend
             [backoffice-bff]=backend
             [storefront-ui]=ui
