@@ -72,12 +72,19 @@ it to Docker Hub tagged with **the commit SHA and the branch name**.
    - `.github/workflows/reusable-build-push-ui-image.yaml` — reusable Next.js build,
    - one thin caller per service, e.g. `.github/workflows/image-tax.yaml`.
 
-2. Live run — push a trivial commit to the demo branch:
+2. Live run — bump the startup-log marker on the demo branch. The marker lives in
+   `tax/src/main/java/com/yas/tax/TaxApplication.java` (last line of `main`):
+
+   ```java
+   LOG.warn("=== DEMO MARKER: tax service running from branch dev_tax_service (v1) ===");
+   ```
+
+   Change `(v1)` → `(v2)` (any text change works — the point is a new commit), then:
 
    ```bash
    git checkout dev_tax_service
-   # edit the startup-log marker string in the tax service, then:
-   git commit -am "demo: bump startup marker"
+   # edit TaxApplication.java: bump (v1) -> (v2)
+   git commit -am "demo: bump startup marker to v2"
    git push origin dev_tax_service
    ```
 
@@ -130,8 +137,9 @@ stays on the default tag.
    kubectl get deploy tax -n yas -o jsonpath='{.spec.template.spec.containers[*].image}'
    # → baohuyhuy/yas-tax:dev_tax_service
 
-   kubectl logs deploy/tax -n yas | grep -i "<marker>"
-   # → the startup-log marker that only exists on the branch
+   kubectl logs deploy/tax -n yas | grep "DEMO MARKER"
+   # → "=== DEMO MARKER: tax service running from branch dev_tax_service (v2) ==="
+   #   (only exists on the branch image — main has no such log line)
    ```
 
 ---
