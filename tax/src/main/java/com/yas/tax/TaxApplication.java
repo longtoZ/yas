@@ -16,6 +16,6 @@ public class TaxApplication {
 
     public static void main(String[] args) {
         SpringApplication.run(TaxApplication.class, args);
-        LOG.warn("=== DEMO MARKER: tax service running from branch dev_tax_service (v1) ===");
+        LOG.warn("=== DEMO MARKER: tax service running from branch dev_tax_service (v2) ===");
     }
 }
