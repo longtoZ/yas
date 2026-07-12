@@ -12,7 +12,6 @@
     <version>${revision}</version>
     <name>cart</name>
     <description>YAS Cart service</description>
-
     <properties>
         <sonar.organization>longtoz</sonar.organization>
         <sonar.host.url>https://sonarcloud.io</sonar.host.url>

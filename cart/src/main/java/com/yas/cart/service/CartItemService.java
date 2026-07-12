@@ -127,7 +127,7 @@ public class CartItemService {
         for (CartItemDeleteVm cartItemDeleteVm : cartItemDeleteVms) {
             Integer existingQuantity = quantityByProductId.get(cartItemDeleteVm.productId());
 
-            if (!Objects.isNull(existingQuantity) && !existingQuantity.equals(cartItemDeleteVm.quantity())) {
+            if (!Objects.isNull(existingQuantity)) {
                 throw new BadRequestException(Constants.ErrorCode.DUPLICATED_CART_ITEMS_TO_DELETE);
             }
 
